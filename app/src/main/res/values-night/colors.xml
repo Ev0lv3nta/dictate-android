@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ground">#FF121110</color>
+    <color name="paper">#FF1A1917</color>
+    <color name="raised">#FF232220</color>
+    <color name="line">#FF302E2A</color>
+    <color name="line_strong">#FF4A4742</color>
+    <color name="ink">#FFEFEDE8</color>
+    <color name="ink_2">#FFB9B5AD</color>
+    <color name="ink_3">#FF807B73</color>
+    <color name="accent">#FFF0B24A</color>
+    <color name="accent_ink">#FF241600</color>
+    <color name="accent_soft">#FF3A2B12</color>
+    <color name="live">#FFF26A5E</color>
+    <color name="warn">#FFD9A066</color>
+    <color name="warn_soft">#FF3A2A16</color>
+    <color name="highlight">#33FFFFFF</color>
+</resources>

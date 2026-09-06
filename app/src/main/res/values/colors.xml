@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Тёплый графит с янтарным акцентом. Ночные значения — в values-night. -->
+    <color name="ground">#FFE8E7E2</color>
+    <color name="paper">#FFF6F5F2</color>
+    <color name="raised">#FFFFFFFF</color>
+    <color name="line">#FFD6D3CC</color>
+    <color name="line_strong">#FFB1ADA3</color>
+    <color name="ink">#FF1B1A17</color>
+    <color name="ink_2">#FF4E4B45</color>
+    <color name="ink_3">#FF7D7972</color>
+    <color name="accent">#FF9A5A00</color>
+    <color name="accent_ink">#FFFFF6E6</color>
+    <color name="accent_soft">#FFF3E3C6</color>
+    <color name="live">#FFB3261E</color>
+    <color name="warn">#FF8C5A2B</color>
+    <color name="warn_soft">#FFF1E4D3</color>
+    <color name="highlight">#22000000</color>
+</resources>
