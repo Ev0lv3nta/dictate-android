@@ -1,0 +1,14 @@
+.gradle/
+.idea/
+*.iml
+local.properties
+build/
+**/build/
+captures/
+*.jks
+*.keystore
+*.apk
+*.aab
+*.log
+.DS_Store
+
