@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Проверки и сборка
+        run: |
+          ./scripts/check-public-tree.sh
+          ./gradlew --no-daemon test lint assembleRelease
+      - name: Контрольная сумма
+        run: shasum -a 256 app/build/outputs/apk/release/app-release-unsigned.apk > app-release-unsigned.apk.sha256
+      - name: Предварительный релиз
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            app-release-unsigned.apk.sha256 \
+            --title "Dictate $GITHUB_REF_NAME" \
+            --prerelease \
+            --generate-notes \
+            --notes "Универсальная интеграция RecognitionService пока не проверена на реальном устройстве. APK не подписан релизным ключом."

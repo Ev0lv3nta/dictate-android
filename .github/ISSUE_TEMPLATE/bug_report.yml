@@ -1,0 +1,46 @@
+name: Ошибка
+description: Сообщить о воспроизводимой проблеме
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Что произошло
+      description: Опишите ожидаемое и фактическое поведение.
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android и устройство
+      placeholder: Android 16, Samsung S23
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: Клиент
+      description: Package name клавиатуры или приложения, вызывающего Dictate.
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Провайдер
+      options: [ElevenLabs, OpenRouter, Google AI Studio, Не относится]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как воспроизвести
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Приватность
+      options:
+        - label: Я удалил из отчёта API-ключи, аудио и текст диктовки.
+          required: true
