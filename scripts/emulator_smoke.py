@@ -34,6 +34,8 @@ parser.add_argument("--discovery")
 parser.add_argument("--screenshots")
 parser.add_argument("--serial", default="emulator-5554")
 parser.add_argument("--input-rate",type=int,choices=[16000,48000],default=16000)
+parser.add_argument("--input-channels",type=int,choices=[1,2],default=1)
+parser.add_argument("--audio-backend",choices=["grpc","pulse"],default="grpc")
 parser.add_argument("--configured", action="store_true")
 parser.add_argument("--release-check", action="store_true")
 parser.add_argument("--upgrade-apk", help="Signed higher-version APK; used only with --release-check")
@@ -172,16 +174,27 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
     channel = grpc.insecure_channel("127.0.0.1:"+port)
     grpc.channel_ready_future(channel).result(timeout=10)
     client = rpc.EmulatorControllerStub(channel)
-    client.setMicrophoneState(pb.MicrophoneState(realAudioEnabled=False),
+    client.setMicrophoneState(pb.MicrophoneState(realAudioEnabled=args.audio_backend=="pulse"),
                               metadata=[("authorization","Bearer "+token)], timeout=5)
 
     def inject():
+        if args.audio_backend=="pulse":
+            if os.environ.get("PULSE_SOURCE") != "dictate_input.monitor":
+                raise AssertionError("PulseAudio test source is not configured")
+            rate=args.input_rate
+            audio=b"".join(struct.pack("<h",int(10000*math.sin(2*math.pi*440*i/rate))) * args.input_channels
+                           for i in range(rate*6))
+            player=subprocess.Popen(["paplay","--raw","--format=s16le","--rate="+str(rate),
+                                     "--channels="+str(args.input_channels),"--device=dictate_input"],stdin=subprocess.PIPE)
+            player.communicate(audio,timeout=15)
+            assert player.returncode==0, "Virtual microphone playback failed"
+            return
         def packets():
             rate=args.input_rate
             frame_samples=rate//50
-            fmt = pb.AudioFormat(samplingRate=rate, channels=0, format=1, mode=0)
+            fmt = pb.AudioFormat(samplingRate=rate, channels=args.input_channels-1, format=1, mode=0)
             for frame in range(300):
-                audio = b"".join(struct.pack("<h", int(10000*math.sin(2*math.pi*440*i/rate)))
+                audio = b"".join(struct.pack("<h", int(10000*math.sin(2*math.pi*440*i/rate))) * args.input_channels
                                  for i in range(frame*frame_samples,(frame+1)*frame_samples))
                 yield pb.AudioPacket(format=fmt, audio=audio, timestamp=int(time.time()*1000000))
                 # Buffered mode applies emulator backpressure instead of overwriting
@@ -301,6 +314,8 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         report = {"api": adb("shell","getprop","ro.build.version.sdk").strip(),
                   "variant": "integration", "backend": "fixture", "audio": "generated 440 Hz PCM",
                   "input_sample_rate": args.input_rate,
+                  "input_channels": args.input_channels,
+                  "audio_backend": args.audio_backend,
                   "commit": subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
                   "checks": (["unapproved UID"] if not args.configured else []) +
                             ["cold service microphone", "cancel/restart", "no speech", "permission revocation", "history off"],

@@ -14,6 +14,10 @@ concurrency:
 jobs:
   microphone:
     runs-on: ubuntu-latest
+    env:
+      QEMU_AUDIO_DRV: pa
+      PULSE_SOURCE: dictate_input.monitor
+      PULSE_SINK: dictate_output
     timeout-minutes: 35
     strategy:
       fail-fast: false
@@ -32,6 +36,15 @@ jobs:
       - name: Enable KVM
         run: |
           sudo chmod 666 /dev/kvm
+      - name: Virtual microphone
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y pulseaudio pulseaudio-utils
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=dictate_input rate=48000 channels=2
+          pactl load-module module-null-sink sink_name=dictate_output rate=48000 channels=2
+          pactl set-default-source dictate_input.monitor
+          pactl set-default-sink dictate_output
       - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ matrix.api }}
@@ -43,7 +56,7 @@ jobs:
             ./gradlew --no-daemon :app:connectedIntegrationAndroidTest
             adb -s emulator-5554 install -r app/build/outputs/apk/integration/app-integration.apk
             adb -s emulator-5554 install sample-client/build/outputs/apk/debug/sample-client-debug.apk
-            uv run scripts/emulator_smoke.py --sdk "$ANDROID_HOME" --screenshots build/emulator-report
+            uv run scripts/emulator_smoke.py --sdk "$ANDROID_HOME" --audio-backend pulse --screenshots build/emulator-report
             ./gradlew --no-daemon :sample-client:connectedDebugAndroidTest
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
