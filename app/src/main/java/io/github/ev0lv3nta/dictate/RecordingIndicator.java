@@ -53,6 +53,7 @@ final class RecordingIndicator {
                         else service.startForeground(1, notification);
                         ready.run();
                     } catch (RuntimeException error) {
+                        android.util.Log.w("DictateIndicator", "FGS refused: " + error.getClass().getSimpleName());
                         close();
                         refused.run();
                     }

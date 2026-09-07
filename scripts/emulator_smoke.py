@@ -38,16 +38,25 @@ def adb(*cmd):
     return subprocess.check_output(["adb", "-s", args.serial, *cmd], text=True, timeout=30)
 
 def ui():
-    adb("shell", "uiautomator", "dump", "/sdcard/dictate-test.xml")
-    return ET.fromstring(adb("shell", "cat", "/sdcard/dictate-test.xml"))
+    end=time.monotonic()+15
+    while time.monotonic()<end:
+        try:
+            adb("shell", "uiautomator", "dump", "/data/local/tmp/dictate-test.xml")
+            return ET.fromstring(adb("shell", "cat", "/data/local/tmp/dictate-test.xml"))
+        except (subprocess.CalledProcessError, ET.ParseError):
+            continue
+    raise AssertionError("uiautomator could not read the current window")
 
 def node(text, timeout=20):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         tree = ui()
         for item in tree.iter("node"):
-            if text.casefold() in item.get("text", "").casefold() or text == item.get("resource-id", "") or text == item.get("class", ""):
+            if any(option.casefold() in item.get("text", "").casefold() for option in text.split("|")) or text == item.get("resource-id", "") or text == item.get("class", ""):
                 return item
+    visible=[n.get("text") for n in tree.iter("node") if n.get("text")]
+    print("Last test screen:", visible)
+    print(adb("logcat","-d","-s","DictateSpeech","DictateIndicator"))
     raise AssertionError("UI element not found: " + text)
 
 def tap(text):
@@ -64,7 +73,7 @@ def tap(text):
 def permit_microphone():
     tree = ui()
     for item in tree.iter("node"):
-        if item.get("resource-id", "").endswith("permission_allow_foreground_only_button"):
+        if item.get("resource-id", "").endswith(("permission_allow_foreground_only_button", "permission_allow_button")):
             x1,y1,x2,y2 = map(int,re.findall(r"\d+", item.attrib["bounds"]))
             adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
             return
@@ -108,7 +117,7 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
 
     if not args.configured:
         adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate/.SettingsActivity")
-        tap("Нужен микрофон")
+        tap("Нужен микрофон|Microphone permission required")
         permit_microphone()
         adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate.sample/.MainActivity")
         tap("Start")
@@ -118,11 +127,11 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         print("PASS: unapproved external UID denied")
 
         adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate/.SettingsActivity")
-        tap("Разрешённые приложения")
+        tap("Разрешённые приложения|Allowed apps")
         tap("android.widget.EditText")
         adb("shell", "input", "text", "io.github.ev0lv3nta.dictate.sample")
-        tap("Сохранить")
-        tap("Разрешить индикатор записи")
+        tap("Сохранить|Save")
+        tap("Разрешить индикатор записи|Allow recording indicator")
         tap("Dictate")
         tap("Allow display over other apps")
     adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate.sample/.MainActivity")

@@ -345,9 +345,16 @@ final class RecordingLibrary {
         File[] files = directory.listFiles();
         if (files != null) for (File file : files) {
             String name = file.getName();
-            if (name.endsWith(".tmp") || (name.endsWith(".pcm")
-                    && !contains(entries, name.substring(0, name.length() - 4)))) file.delete();
+            if (name.endsWith(".tmp")) { file.delete(); continue; }
+            if (name.matches("(?:legacy-)?[0-9]+(?:-[0-9]+)?[.]pcm")) {
+                String id = name.substring(0,name.length()-4);
+                long size=file.length();
+                if (!contains(entries,id) && size>0 && size<=MAX_BYTES && size%2==0)
+                    entries.add(new Entry(id,file.lastModified(),size*1000L/(AudioCapture.SAMPLE_RATE*2),
+                            size,SOURCE_APP,null,null,null));
+            }
         }
+        entries.sort((a,b) -> Long.compare(b.createdAt,a.createdAt));
         write(evict(entries));
     }
 

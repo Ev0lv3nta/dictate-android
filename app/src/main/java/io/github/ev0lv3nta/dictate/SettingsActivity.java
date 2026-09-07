@@ -55,72 +55,72 @@ public final class SettingsActivity extends Activity {
     private void render() {
         if (content == null || isDestroyed()) return;
         content.removeAllViews();
-        heading("Настройки", 28);
-        row("‹ Диктовка", () -> { startActivity(new Intent(this, HomeActivity.class)); finish(); });
-        heading("Провайдер и ключ", 20);
+        heading(getString(R.string.settings_settings), 28);
+        row(getString(R.string.settings_dictation), () -> { startActivity(new Intent(this, HomeActivity.class)); finish(); });
+        heading(getString(R.string.settings_provider_and_key), 20);
         row(prefs.getProvider(), this::providerDialog);
-        row(prefs.getModel().isEmpty() ? "Выберите модель" : prefs.getModel(), this::modelDialog);
-        row("API-ключ · добавить или заменить", this::keyDialog);
-        TextView keyState = heading("Проверка локального ключа…", 14);
+        row(prefs.getModel().isEmpty() ? getString(R.string.settings_choose_a_model) : prefs.getModel(), this::modelDialog);
+        row(getString(R.string.settings_api_key_add_or_replace), this::keyDialog);
+        TextView keyState = heading(getString(R.string.settings_reading_local_key), 14);
         String provider = prefs.getProvider();
         storage.execute(() -> {
             boolean unreadable = keys.isUnreadable(provider);
             String key = keys.load(provider);
-            String label = unreadable ? "Ключ не читается — введите заново"
-                    : key == null ? "Ключ не настроен" : "Сохранён · " + SecureApiKeyStore.mask(key);
+            String label = unreadable ? getString(R.string.settings_key_unreadable_enter_it_again)
+                    : key == null ? getString(R.string.settings_key_not_configured) : getString(R.string.settings_saved) + SecureApiKeyStore.mask(key);
             runOnUiThread(() -> { if (!isDestroyed()) keyState.setText(label); });
         });
-        heading("Сохранение ключа не проверяет доступ к API и не отправляет платный запрос.", 14);
+        heading(getString(R.string.settings_saving_a_key_does_not_verify_api_access_or_send_a_paid_), 14);
 
-        heading("Язык и словарь", 20);
-        row("Язык · " + (prefs.getLanguageOverride().isEmpty() ? "Авто" : prefs.getLanguageOverride()),
-                () -> edit("Язык BCP 47", prefs.getLanguageOverride(), "en-GB, pt-BR, zh-Hant-TW", false, value -> {
-                    if (!value.isEmpty() && AppPreferences.normalizeLanguage(value).isEmpty()) throw new IllegalArgumentException("Некорректный языковой тег");
+        heading(getString(R.string.settings_language_and_vocabulary), 20);
+        row(getString(R.string.settings_language) + (prefs.getLanguageOverride().isEmpty() ? getString(R.string.settings_auto) : prefs.getLanguageOverride()),
+                () -> edit(getString(R.string.settings_language_bcp_47), prefs.getLanguageOverride(), "en-GB, pt-BR, zh-Hant-TW", false, value -> {
+                    if (!value.isEmpty() && AppPreferences.normalizeLanguage(value).isEmpty()) throw new IllegalArgumentException(getString(R.string.settings_invalid_language_tag));
                     save(prefs.getProvider(), prefs.getModel(), value, prefs.getKeytermsText(), prefs.getAllowedCallersText(),
                             prefs.isAutoStopEnabled(), prefs.getSilenceMillis(), prefs.getMaxRecordingSeconds(), prefs.getSpeechThresholdDb());
                 }));
-        row("Словарь · " + prefs.getKeyterms().size() + " терминов", () -> edit("Словарь", prefs.getKeytermsText(),
-                "Один термин на строку. До 1000 для STT, до 200 для chat. OpenRouter STT словарь не принимает.", true,
+        row(getString(R.string.settings_vocabulary) + prefs.getKeyterms().size() + getString(R.string.settings_terms), () -> edit(getString(R.string.settings_vocabulary_17), prefs.getKeytermsText(),
+                getString(R.string.settings_one_term_per_line_up_to_1000_for_supported_stt_and_200_), true,
                 value -> save(prefs.getProvider(), prefs.getModel(), prefs.getLanguageOverride(), value,
                         prefs.getAllowedCallersText(), prefs.isAutoStopEnabled(), prefs.getSilenceMillis(),
                         prefs.getMaxRecordingSeconds(), prefs.getSpeechThresholdDb())));
 
-        heading("Подключение клиента", 20);
+        heading(getString(R.string.settings_client_access), 20);
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-            row("Нужен микрофон", () -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1));
-        row(Settings.canDrawOverlays(this) ? "Индикатор записи разрешён" : "Разрешить индикатор записи",
+            row(getString(R.string.settings_microphone_permission_required), () -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1));
+        row(Settings.canDrawOverlays(this) ? getString(R.string.settings_recording_indicator_allowed) : getString(R.string.settings_allow_recording_indicator),
                 () -> startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:"+getPackageName()))));
-        heading("Для внешних клиентов используется видимая кнопка Stop поверх экрана. Это отдельное разрешение; встроенная диктовка его не требует.", 14);
-        row("Установленные клавиатуры", this::imeDialog);
-        row("Разрешённые приложения · " + prefs.getAllowedCallerPackages().size(),
-                () -> edit("Разрешённые приложения", prefs.getAllowedCallersText(), "org.example.keyboard", true, value -> {
+        heading(getString(R.string.settings_external_clients_use_a_visible_stop_button_over_the_scr), 14);
+        row(getString(R.string.settings_installed_keyboards), this::imeDialog);
+        row(getString(R.string.settings_allowed_apps) + prefs.getAllowedCallerPackages().size(),
+                () -> edit(getString(R.string.settings_allowed_apps_26), prefs.getAllowedCallersText(), "org.example.keyboard", true, value -> {
                     Set<String> packages = AppPreferences.parsePackageNamesStrict(value);
                     for (String name : packages) {
                         try { getPackageManager().getApplicationInfo(name, 0); }
-                        catch (PackageManager.NameNotFoundException error) { throw new IllegalArgumentException("Пакет не установлен или не виден: " + name); }
+                        catch (PackageManager.NameNotFoundException error) { throw new IllegalArgumentException(getString(R.string.settings_package_not_installed_or_not_visible) + name); }
                     }
                     save(prefs.getProvider(), prefs.getModel(), prefs.getLanguageOverride(), prefs.getKeytermsText(), value,
                             prefs.isAutoStopEnabled(), prefs.getSilenceMillis(), prefs.getMaxRecordingSeconds(), prefs.getSpeechThresholdDb());
                 }));
-        row("Открыть sample client", () -> {
+        row(getString(R.string.settings_try_sample_client), () -> {
             Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName()+".sample");
-            if (intent == null) new AlertDialog.Builder(this).setMessage("Установите sample-client из Releases репозитория.")
+            if (intent == null) new AlertDialog.Builder(this).setMessage(getString(R.string.settings_install_the_sample_client_from_the_repository_releases))
                     .setPositiveButton(android.R.string.ok, null).show();
             else startActivity(intent);
         });
 
-        heading("История и приватность", 20);
+        heading(getString(R.string.settings_history_and_privacy), 20);
         CheckBox history = new CheckBox(this);
-        history.setText("Сохранять последние записи на устройстве");
+        history.setText(getString(R.string.settings_save_recent_recordings_on_this_device));
         history.setChecked(prefs.isHistoryEnabled());
         history.setMinHeight(dp(48));
         history.setOnCheckedChangeListener((v, enabled) -> prefs.setHistoryEnabled(enabled));
         content.addView(history);
-        heading("По умолчанию история выключена. Старые записи остаются до удаления. Аудио отправляется выбранному API; OpenRouter передаёт его downstream-провайдеру.", 14);
-        row("Очистить всю историю", () -> new AlertDialog.Builder(this).setMessage("Удалить все сохранённые аудио и тексты?")
-                .setNegativeButton(android.R.string.cancel, null).setPositiveButton("Удалить", (d,w) ->
+        heading(getString(R.string.settings_history_is_off_by_default_existing_recordings_remain_un), 14);
+        row(getString(R.string.settings_clear_all_history), () -> new AlertDialog.Builder(this).setMessage(getString(R.string.settings_delete_all_saved_audio_and_transcripts))
+                .setNegativeButton(android.R.string.cancel, null).setPositiveButton(getString(R.string.settings_delete), (d,w) ->
                         storage.execute(() -> new RecordingLibrary(this).clear())).show());
-        row("Дополнительные параметры записи", this::advancedDialog);
+        row(getString(R.string.settings_recording_options), this::advancedDialog);
         heading("Dictate " + BuildConfig.VERSION_NAME, 14);
     }
 
@@ -128,7 +128,7 @@ public final class SettingsActivity extends Activity {
         List<ModelCatalog.Provider> providers = ModelCatalog.providers();
         String[] labels = new String[providers.size()];
         for (int i=0;i<labels.length;i++) labels[i]=providers.get(i).title;
-        new AlertDialog.Builder(this).setTitle("Провайдер").setItems(labels, (d,index) -> {
+        new AlertDialog.Builder(this).setTitle(getString(R.string.settings_provider)).setItems(labels, (d,index) -> {
             String p = providers.get(index).id;
             save(p, prefs.getModel(p), prefs.getLanguageOverride(), prefs.getKeytermsText(), prefs.getAllowedCallersText(),
                     prefs.isAutoStopEnabled(), prefs.getSilenceMillis(), prefs.getMaxRecordingSeconds(), prefs.getSpeechThresholdDb());
@@ -141,7 +141,7 @@ public final class SettingsActivity extends Activity {
         List<ModelCatalog.Model> models = ModelCatalog.provider(prefs.getProvider()).models;
         String[] labels = new String[models.size()];
         for (int i=0;i<labels.length;i++) labels[i]=models.get(i).title;
-        new AlertDialog.Builder(this).setTitle("Модель").setItems(labels, (d,index) -> {
+        new AlertDialog.Builder(this).setTitle(getString(R.string.settings_model)).setItems(labels, (d,index) -> {
             save(prefs.getProvider(), models.get(index).id, prefs.getLanguageOverride(), prefs.getKeytermsText(), prefs.getAllowedCallersText(),
                     prefs.isAutoStopEnabled(), prefs.getSilenceMillis(), prefs.getMaxRecordingSeconds(), prefs.getSpeechThresholdDb());
             render();
@@ -152,7 +152,7 @@ public final class SettingsActivity extends Activity {
         List<InputMethodInfo> imes = getSystemService(InputMethodManager.class).getInputMethodList();
         String[] labels = new String[imes.size()];
         for (int i=0;i<labels.length;i++) labels[i] = imes.get(i).loadLabel(getPackageManager()) + " · " + imes.get(i).getPackageName();
-        new AlertDialog.Builder(this).setTitle("Разрешить клиент — совместимость не гарантируется")
+        new AlertDialog.Builder(this).setTitle(getString(R.string.settings_allow_client_compatibility_is_not_guaranteed))
                 .setItems(labels,(d,index) -> {
                     Set<String> packages = prefs.getAllowedCallerPackages();
                     packages.add(imes.get(index).getPackageName());
@@ -166,11 +166,11 @@ public final class SettingsActivity extends Activity {
         LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(20),0,dp(20),0);
         EditText input = new EditText(this); input.setSingleLine(true); input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         input.setSaveEnabled(false); input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS); box.addView(input);
-        CheckBox reveal = new CheckBox(this); reveal.setText("Показать ключ"); box.addView(reveal);
+        CheckBox reveal = new CheckBox(this); reveal.setText(getString(R.string.settings_show_key)); box.addView(reveal);
         reveal.setOnCheckedChangeListener((v,on) -> input.setTransformationMethod(on ? null : android.text.method.PasswordTransformationMethod.getInstance()));
         String provider = prefs.getProvider();
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Ключ · " + provider).setView(box)
-                .setPositiveButton("Сохранить",null).setNegativeButton(android.R.string.cancel,null).setNeutralButton("Удалить",null).create();
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(getString(R.string.settings_key) + provider).setView(box)
+                .setPositiveButton(getString(R.string.settings_save),null).setNegativeButton(android.R.string.cancel,null).setNeutralButton(getString(R.string.settings_delete),null).create();
         dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         dialog.setOnDismissListener(d -> getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE));
@@ -187,7 +187,7 @@ public final class SettingsActivity extends Activity {
                 runOnUiThread(() -> {
                     if (isDestroyed()) return;
                     if (ok) { dialog.dismiss(); render(); }
-                    else { input.setError("Не удалось сохранить изменение"); dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true); }
+                    else { input.setError(getString(R.string.settings_could_not_save_the_change)); dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true); }
                 });
             });
         };
@@ -200,20 +200,20 @@ public final class SettingsActivity extends Activity {
         fields.setOrientation(LinearLayout.VERTICAL);
         fields.setPadding(dp(20),0,dp(20),0);
         CheckBox auto = new CheckBox(this);
-        auto.setText("Останавливать после паузы"); auto.setChecked(prefs.isAutoStopEnabled()); fields.addView(auto);
-        EditText silence = number(fields,"Пауза, мс (500–5000)",prefs.getSilenceMillis());
-        EditText max = number(fields,"Максимум, секунд (5–300)",prefs.getMaxRecordingSeconds());
-        EditText threshold = number(fields,"Порог речи, dB (−70…−30)",prefs.getSpeechThresholdDb());
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Параметры записи")
-                .setMessage("Тихая речь — ниже порог; фоновый шум — выше. Один порог используется и при обрезке тишины.")
-                .setView(fields).setNegativeButton(android.R.string.cancel,null).setPositiveButton("Сохранить",null).create();
+        auto.setText(getString(R.string.settings_stop_after_silence)); auto.setChecked(prefs.isAutoStopEnabled()); fields.addView(auto);
+        EditText silence = number(fields,getString(R.string.settings_silence_ms_500_5000),prefs.getSilenceMillis());
+        EditText max = number(fields,getString(R.string.settings_maximum_seconds_5_300),prefs.getMaxRecordingSeconds());
+        EditText threshold = number(fields,getString(R.string.settings_speech_threshold_db_70_30),prefs.getSpeechThresholdDb());
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(getString(R.string.settings_recording_options_48))
+                .setMessage(getString(R.string.settings_lower_the_threshold_for_quiet_speech_raise_it_for_noise))
+                .setView(fields).setNegativeButton(android.R.string.cancel,null).setPositiveButton(getString(R.string.settings_save),null).create();
         dialog.show();
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             try {
                 save(prefs.getProvider(),prefs.getModel(),prefs.getLanguageOverride(),prefs.getKeytermsText(),prefs.getAllowedCallersText(),
                         auto.isChecked(),Integer.parseInt(silence.getText().toString()),Integer.parseInt(max.getText().toString()),Integer.parseInt(threshold.getText().toString()));
                 dialog.dismiss();
-            } catch (RuntimeException error) { threshold.setError("Проверьте числа и допустимые диапазоны"); }
+            } catch (RuntimeException error) { threshold.setError(getString(R.string.settings_check_the_numbers_and_their_allowed_ranges)); }
         });
     }
 
@@ -230,11 +230,11 @@ public final class SettingsActivity extends Activity {
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | (multiline?InputType.TYPE_TEXT_FLAG_MULTI_LINE:0));
         if (multiline) { input.setMinLines(4); input.setGravity(Gravity.TOP); }
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setMessage(hint).setView(input)
-                .setNegativeButton(android.R.string.cancel,null).setPositiveButton("Сохранить",null).create();
+                .setNegativeButton(android.R.string.cancel,null).setPositiveButton(getString(R.string.settings_save),null).create();
         dialog.show();
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             try { action.save(input.getText().toString().trim()); dialog.dismiss(); render(); }
-            catch (RuntimeException error) { input.setError(error instanceof NumberFormatException?"Введите числа":error.getMessage()); }
+            catch (RuntimeException error) { input.setError(error instanceof NumberFormatException?getString(R.string.settings_enter_numbers):error.getMessage()); }
         });
     }
     private void save(String provider,String model,String language,String terms,String callers,boolean auto,int silence,int max,int threshold) {

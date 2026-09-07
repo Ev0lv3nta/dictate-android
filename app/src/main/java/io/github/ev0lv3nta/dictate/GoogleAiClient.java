@@ -76,6 +76,8 @@ final class GoogleAiClient implements Transcription.Client {
                 Transcription.headers("x-goog-api-key", apiKey),
                 "application/json", Transcription.jsonBody(json), request);
         JSONObject result = Transcription.parseJson(NAME, response, 200);
+        if (!"completed".equals(result.optString("status")))
+            throw new Transcription.ApiException(Transcription.ErrorKind.INVALID_RESPONSE,"Incomplete interaction");
         String text = result.optString("output_text", "");
         if (text.trim().isEmpty()) {
             text = collectStepText(result);
@@ -117,12 +119,14 @@ final class GoogleAiClient implements Transcription.Client {
         return Transcription.requireText(NAME, collectCandidateText(result), 200);
     }
 
-    private static String collectCandidateText(JSONObject result) {
+    private static String collectCandidateText(JSONObject result) throws Transcription.ApiException {
         JSONArray candidates = result.optJSONArray("candidates");
         if (candidates == null || candidates.length() == 0) {
             return "";
         }
         JSONObject first = candidates.optJSONObject(0);
+        if (first == null || !"STOP".equals(first.optString("finishReason")))
+            throw new Transcription.ApiException(Transcription.ErrorKind.INVALID_RESPONSE,"Incomplete candidate");
         JSONObject content = first == null ? null : first.optJSONObject("content");
         JSONArray parts = content == null ? null : content.optJSONArray("parts");
         return joinText(parts);
@@ -137,7 +141,7 @@ final class GoogleAiClient implements Transcription.Client {
         StringBuilder text = new StringBuilder();
         for (int index = 0; index < steps.length(); index++) {
             JSONObject step = steps.optJSONObject(index);
-            if (step != null) {
+            if (step != null && "model_output".equals(step.optString("type"))) {
                 text.append(joinText(step.optJSONArray("content")));
             }
         }
@@ -151,7 +155,8 @@ final class GoogleAiClient implements Transcription.Client {
         StringBuilder text = new StringBuilder();
         for (int index = 0; index < parts.length(); index++) {
             JSONObject part = parts.optJSONObject(index);
-            if (part != null) {
+            if (part != null && !part.optBoolean("thought",false)
+                    && (!part.has("type") || "text".equals(part.optString("type")))) {
                 text.append(part.optString("text", ""));
             }
         }

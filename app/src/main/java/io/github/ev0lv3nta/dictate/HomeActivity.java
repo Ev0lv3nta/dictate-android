@@ -92,6 +92,7 @@ public final class HomeActivity extends Activity {
             return;
         }
         state.text = "";
+        state.processing = false;
         state.message = getString(R.string.home_preparing);
         state.session = new DictationSession(getApplicationContext(), "", state);
         state.session.start();
@@ -114,7 +115,7 @@ public final class HomeActivity extends Activity {
     @Override protected void onResume() { super.onResume(); render(); }
     @Override protected void onStop() {
         main.removeCallbacks(tick);
-        if (state.recording && state.session != null) {
+        if (!state.processing && state.session != null) {
             state.session.cancel();
             state.session = null;
             state.recording = false;
@@ -156,6 +157,7 @@ public final class HomeActivity extends Activity {
         HomeActivity screen;
         DictationSession session;
         boolean recording;
+        boolean processing;
         long started;
         String text = "";
         String message = "";
@@ -170,12 +172,14 @@ public final class HomeActivity extends Activity {
         @Override public void level(float value) { }
         @Override public void processing() {
             recording = false;
+            processing = true;
             message = screen == null ? "Processing" : screen.getString(R.string.home_processing);
             update();
         }
         @Override public void result(String value) {
             session = null;
             recording = false;
+            processing = false;
             text = value;
             message = "";
             update();
@@ -183,6 +187,7 @@ public final class HomeActivity extends Activity {
         @Override public void failure(int code, String error) {
             session = null;
             recording = false;
+            processing = false;
             message = error;
             update();
         }
