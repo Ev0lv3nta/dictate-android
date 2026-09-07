@@ -237,10 +237,29 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
     tap("Stop")
     wait_event("error 6")
     print("PASS: cancel/restart and no speech")
+    adb("shell","pm","revoke","io.github.ev0lv3nta.dictate","android.permission.RECORD_AUDIO")
+    adb("shell","am","force-stop","io.github.ev0lv3nta.dictate.sample")
+    adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate.sample/.MainActivity")
+    clear_events()
+    tap("=Start")
+    wait_event("error 9")
+    adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate/.SettingsActivity")
+    tap("Microphone permission required")
+    permit_microphone()
+    print("PASS: microphone revocation denies the external client; restored through system UI")
+    # Debug-only inspection of the integration app, not a runtime permission workaround.
+    files=subprocess.run(["adb","-s",args.serial,"shell","run-as","io.github.ev0lv3nta.dictate",
+                          "ls","files/recordings"],text=True,capture_output=True)
+    if files.returncode==0:
+        assert not files.stdout.strip(), "History-off session persisted audio"
+    else:
+        assert "No such file" in files.stderr+files.stdout, "Could not inspect integration history"
+    print("PASS: successful and cancelled history-off sessions left no audio files")
     if args.screenshots:
         report = {"api": adb("shell","getprop","ro.build.version.sdk").strip(),
                   "variant": "integration", "backend": "fixture", "audio": "generated 440 Hz PCM",
                   "commit": subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
-                  "checks": ["unapproved UID", "cold service microphone", "cancel/restart", "no speech"],
+                  "checks": (["unapproved UID"] if not args.configured else []) +
+                            ["cold service microphone", "cancel/restart", "no speech", "permission revocation", "history off"],
                   "live_api": "not run — credentials not provided"}
         (Path(args.screenshots)/"report.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")
