@@ -86,6 +86,8 @@ def tap(text, checked=None):
     if checked is not None and n.get("checked") == str(checked).lower(): return
     x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.attrib["bounds"]))
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
+    if checked is not None:
+        assert node(text).get("checked") == str(checked).lower(), "Checkbox did not change: " + text
 
 def permit_microphone():
     end=time.monotonic()+15
@@ -105,6 +107,11 @@ def read_events():
     for line in event_log.stdout: events.put(line.strip())
 threading.Thread(target=read_events,daemon=True).start()
 atexit.register(event_log.terminate)
+def cleanup_clients():
+    for package in ("io.github.ev0lv3nta.dictate.sample", "io.github.ev0lv3nta.dictate"):
+        subprocess.run(["adb","-s",args.serial,"shell","am","force-stop",package],
+                       stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=10)
+atexit.register(cleanup_clients)
 
 def clear_events():
     while True:
@@ -144,6 +151,8 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
     channel = grpc.insecure_channel("127.0.0.1:"+port)
     grpc.channel_ready_future(channel).result(timeout=10)
     client = rpc.EmulatorControllerStub(channel)
+    client.setMicrophoneState(pb.MicrophoneState(realAudioEnabled=False),
+                              metadata=[("authorization","Bearer "+token)], timeout=5)
 
     def inject():
         def packets():
@@ -155,6 +164,8 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
                 yield pb.AudioPacket(format=fmt, audio=audio, timestamp=int(time.time()*1000000))
                 # Buffered mode applies emulator backpressure instead of overwriting
                 # microphone packets when a shared CI host temporarily falls behind.
+                remaining = start+(frame+1)*0.02-time.monotonic()
+                if remaining > 0: time.sleep(remaining)  # real-time PCM pacing
         client.injectAudio(packets(), metadata=[("authorization","Bearer "+token)], timeout=10)
 
     if args.release_check:
@@ -212,6 +223,16 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         tap("Разрешить индикатор записи|Allow recording indicator")
         tap("Dictate")
         tap("Allow display over other apps")
+        adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate/.SettingsActivity")
+        tap("Recording options")
+        tap("Stop after silence", checked=False)
+        tap("=Save")
+        for attempt in range(5):
+            if not any(n.get("resource-id") == "android:id/button1" for n in ui().iter("node")): break
+        else: raise AssertionError("Recording options were not saved")
+        # Let the normal Activity stop flush pending preferences before the cold kill.
+        adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate.sample/.MainActivity")
+        node("=Start")
     # A recently visible settings Activity can mask background microphone failures.
     adb("shell", "am", "force-stop", "io.github.ev0lv3nta.dictate")
     adb("shell", "am", "force-stop", "io.github.ev0lv3nta.dictate.sample")
@@ -221,6 +242,7 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
     wait_event("ready")
     wait_event("audio stream")
     inject()
+    tap("=Stop")
     node("Fixture: microphone captured")
     print("PASS: real AudioRecord, external UID, fixture transcript")
     if args.screenshots:
