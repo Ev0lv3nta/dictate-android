@@ -50,6 +50,10 @@ uv run scripts/emulator_smoke.py --sdk "$ANDROID_HOME" --screenshots build/emula
 
 Это реальные снимки release на эмуляторе, без дорисовки. В настройках показан маскированный недействительный ключ из проверки обновления. Он не использовался для запросов.
 
+<img src="media/sample-fixture.png" width="230" alt="Отдельный клиент получает fixture-результат через SpeechRecognizer">
+
+Отдельный клиент с `integration`-сборкой: callbacks проходят через SpeechRecognizer, а текст явно обозначен как fixture. Это не облачное распознавание.
+
 ## Внешние API
 
 Live API: **not run — credentials not provided**. Каталог не является заявлением, что все модели доступны любому аккаунту. Основа fixtures: [ElevenLabs STT](https://elevenlabs.io/docs/api-reference/speech-to-text/convert), [OpenRouter STT](https://openrouter.ai/docs/api/api-reference/stt/create-transcription), [OpenRouter audio](https://openrouter.ai/docs/guides/overview/multimodal/audio), [Google transcription](https://ai.google.dev/gemini-api/docs/transcribe), [Google Interactions](https://ai.google.dev/gemini-api/docs/interactions-overview).
