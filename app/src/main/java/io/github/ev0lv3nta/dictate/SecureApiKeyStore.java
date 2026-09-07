@@ -87,8 +87,8 @@ final class SecureApiKeyStore {
     }
 
     boolean hasCustomKey(String providerId) {
-        String value = loadCustom(providerId);
-        return value != null && !value.isEmpty();
+        // Cheap UI check; decryption and recovery run on the session worker.
+        return preferences.contains(ciphertextName(providerId)) || preferences.contains(ivName(providerId));
     }
 
     boolean isUnreadable(String providerId) {

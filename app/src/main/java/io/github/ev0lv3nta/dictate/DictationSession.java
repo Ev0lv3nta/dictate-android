@@ -51,7 +51,7 @@ final class DictationSession {
         if (started || state.isCancelled()) return;
         started = true;
         if (!OperationGate.acquire(this)) {
-            fail(SpeechRecognizer.ERROR_RECOGNIZER_BUSY, "Микрофон занят другой диктовкой");
+            fail(SpeechRecognizer.ERROR_RECOGNIZER_BUSY, context.getString(R.string.error_busy));
             return;
         }
         worker.execute(this::run);
@@ -88,7 +88,7 @@ final class DictationSession {
             if (state.isCancelled()) return;
             SecureApiKeyStore keys = new SecureApiKeyStore(context);
             if (keys.isUnreadable(config.provider)) {
-                fail(SpeechRecognizer.ERROR_CLIENT, "Не удалось расшифровать ключ. Введите его заново.");
+                fail(SpeechRecognizer.ERROR_CLIENT, context.getString(R.string.error_unreadable));
                 return;
             }
             key = keys.load(config.provider);
@@ -103,7 +103,7 @@ final class DictationSession {
             if (state.isCancelled()) return;
             byte[] pcm = PcmSilenceTrimmer.trimEdges(result.pcm, AudioCapture.SAMPLE_RATE, threshold, 300).pcm;
             if (!result.speechStarted || pcm.length < 6400) {
-                fail(SpeechRecognizer.ERROR_SPEECH_TIMEOUT, "Речь не обнаружена");
+                fail(SpeechRecognizer.ERROR_SPEECH_TIMEOUT, context.getString(R.string.error_no_match));
                 return;
             }
             post(listener::processing);
@@ -126,15 +126,15 @@ final class DictationSession {
                 finally { worker.shutdown(); }
             });
         } catch (SecurityException error) {
-            fail(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS, "Разрешите доступ к микрофону");
+            fail(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS, context.getString(R.string.error_microphone));
         } catch (AudioCapture.CaptureException error) {
-            fail(SpeechRecognizer.ERROR_AUDIO, "Не удалось открыть микрофон");
+            fail(SpeechRecognizer.ERROR_AUDIO, context.getString(R.string.error_capture));
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
         } catch (Transcription.ApiException error) {
-            fail(Transcription.androidError(error.kind), error.getMessage());
+            fail(Transcription.androidError(error.kind), Transcription.userMessage(context, error.kind));
         } catch (RuntimeException error) {
-            fail(SpeechRecognizer.ERROR_CLIENT, "Не удалось завершить диктовку");
+            fail(SpeechRecognizer.ERROR_CLIENT, context.getString(R.string.error_session));
         } finally {
             key = null;
             OperationGate.release(this);

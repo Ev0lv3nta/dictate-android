@@ -156,6 +156,11 @@ final class Transcription {
         }
     }
 
+    static String userMessage(android.content.Context context, ErrorKind kind) {
+        int[] messages = {R.string.error_auth, R.string.error_billing, R.string.error_rate_limit, R.string.error_invalid_response, R.string.error_network, R.string.error_timeout, R.string.error_invalid_request, R.string.error_no_match, R.string.error_server, R.string.error_cancelled};
+        return context.getString(messages[kind.ordinal()]);
+    }
+
     static String safeMessage(ErrorKind kind) {
         switch (kind) {
             case AUTH: return "Ключ отсутствует или отклонён. Проверьте настройки провайдера.";

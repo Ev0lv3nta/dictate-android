@@ -1,0 +1,21 @@
+<resources>
+    <string name="error_auth">Key missing or rejected. Check provider settings.</string>
+    <string name="error_billing">API quota exhausted. Check your provider account.</string>
+    <string name="error_rate_limit">Too many requests. Try again later.</string>
+    <string name="error_invalid_response">The provider returned an invalid or incomplete response.</string>
+    <string name="error_network">Could not connect. Check your network.</string>
+    <string name="error_timeout">The request timed out. Retry manually.</string>
+    <string name="error_invalid_request">Unsupported settings. Check model, language and vocabulary.</string>
+    <string name="error_no_match">No speech detected.</string>
+    <string name="error_server">Provider error. Retry manually.</string>
+    <string name="error_cancelled">Request cancelled.</string>
+    <string name="error_busy">Another audio operation is still running.</string>
+    <string name="error_unreadable">The saved key could not be decrypted. Enter it again.</string>
+    <string name="error_microphone">Allow microphone access.</string>
+    <string name="error_capture">Could not open the microphone.</string>
+    <string name="error_session">Could not finish dictation.</string>
+    <string name="error_read_recording">Could not read the saved recording.</string>
+    <string name="error_recognize">Could not recognize the recording.</string>
+    <string name="history_count">%1$d / %2$d</string>
+    <string name="history_today">Today %1$s</string>
+</resources>

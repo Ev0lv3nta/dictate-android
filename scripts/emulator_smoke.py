@@ -34,6 +34,8 @@ parser.add_argument("--discovery")
 parser.add_argument("--screenshots")
 parser.add_argument("--serial", default="emulator-5554")
 parser.add_argument("--configured", action="store_true")
+parser.add_argument("--release-check", action="store_true")
+parser.add_argument("--upgrade-apk", help="Signed higher-version APK; used only with --release-check")
 args = parser.parse_args()
 if not args.serial.startswith("emulator-"):
     raise SystemExit("This test only accepts emulator serials")
@@ -65,14 +67,15 @@ def node(text, timeout=20):
     while time.monotonic() < end:
         tree = ui()
         for item in tree.iter("node"):
-            if any(option.casefold() in item.get("text", "").casefold() for option in text.split("|")) or text == item.get("resource-id", "") or text == item.get("class", ""):
+            if any((option[1:].casefold() == item.get("text","").casefold()) if option.startswith("=")
+                   else option.casefold() in item.get("text", "").casefold() for option in text.split("|")) or text == item.get("resource-id", "") or text == item.get("class", "") or text == item.get("content-desc", ""):
                 return item
     visible=[n.get("text") for n in tree.iter("node") if n.get("text")]
     print("Last test screen:", visible)
-    print(adb("logcat","-d","-s","DictateSpeech","DictateIndicator"))
+    print(adb("logcat","-d","-s","DictateSpeech","DictateIndicator","DictateFixture"))
     raise AssertionError("UI element not found: " + text)
 
-def tap(text):
+def tap(text, checked=None):
     for attempt in range(5):
         try:
             n = node(text, 4)
@@ -80,6 +83,7 @@ def tap(text):
         except AssertionError:
             if attempt == 4: raise
             adb("shell", "input", "swipe", "540", "1900", "540", "700", "400")
+    if checked is not None and n.get("checked") == str(checked).lower(): return
     x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.attrib["bounds"]))
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
 
@@ -153,18 +157,54 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
                 if remaining > 0: time.sleep(remaining)  # pacing audio, not test synchronization
         client.injectAudio(packets(), metadata=[("authorization","Bearer "+token)], timeout=10)
 
+    if args.release_check:
+        adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate/.HomeActivity")
+        tap("=Settings and client access")
+        tap("API key · add or replace")
+        tap("android.widget.EditText")
+        adb("shell","input","text","invalid-local-update-fixture")
+        tap("Save")
+        node("ture")  # only the masked suffix, not plaintext, is visible
+        permissions=adb("shell","dumpsys","package","io.github.ev0lv3nta.dictate")
+        if "android.permission.RECORD_AUDIO: granted=true" not in permissions:
+            tap("Microphone permission required")
+            permit_microphone()
+        tap("Save recent recordings on this device", checked=True)
+        adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate/.HomeActivity")
+        tap("=History")
+        tap("io.github.ev0lv3nta.dictate:id/record")
+        node("Recording — tap to stop")
+        inject()
+        tap("io.github.ev0lv3nta.dictate:id/record")
+        node("Recording saved")
+        node("io.github.ev0lv3nta.dictate:id/play")
+        if args.upgrade_apk:
+            adb("install","-r",args.upgrade_apk)
+            adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate/.SettingsActivity")
+            node("ture")
+            adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate/.HomeActivity")
+            tap("=History")
+            node("io.github.ev0lv3nta.dictate:id/play")
+            print("PASS: signed update preserved encrypted key, settings and audio")
+        if args.screenshots:
+            Path(args.screenshots).mkdir(parents=True,exist_ok=True)
+            (Path(args.screenshots)/"release-recorder.png").write_bytes(subprocess.check_output(
+                ["adb","-s",args.serial,"exec-out","screencap","-p"]))
+        print("PASS: signed release launch, key save and real microphone; no provider calls")
+        sys.exit(0)
+
     if not args.configured:
-        adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate/.SettingsActivity")
+        adb("shell", "am", "start", "-W", "--activity-clear-top", "-n", "io.github.ev0lv3nta.dictate/.SettingsActivity")
         tap("Нужен микрофон|Microphone permission required")
         permit_microphone()
-        adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate.sample/.MainActivity")
+        adb("shell", "am", "start", "-W", "--activity-clear-top", "-n", "io.github.ev0lv3nta.dictate.sample/.MainActivity")
         tap("Start")
         permit_microphone()
         tap("Start")
         node("error 9")
         print("PASS: unapproved external UID denied")
 
-        adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate/.SettingsActivity")
+        adb("shell", "am", "start", "-W", "--activity-clear-top", "-n", "io.github.ev0lv3nta.dictate/.SettingsActivity")
         tap("Разрешённые приложения|Allowed apps")
         tap("android.widget.EditText")
         adb("shell", "input", "text", "io.github.ev0lv3nta.dictate.sample")
@@ -175,7 +215,7 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
     # A recently visible settings Activity can mask background microphone failures.
     adb("shell", "am", "force-stop", "io.github.ev0lv3nta.dictate")
     adb("shell", "am", "force-stop", "io.github.ev0lv3nta.dictate.sample")
-    adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate.sample/.MainActivity")
+    adb("shell", "am", "start", "-W", "--activity-clear-top", "-n", "io.github.ev0lv3nta.dictate.sample/.MainActivity")
     clear_events()
     tap("Start")
     wait_event("ready")

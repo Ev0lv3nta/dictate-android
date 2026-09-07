@@ -46,6 +46,10 @@ public final class DictateRecognitionService extends RecognitionService {
         }
         Context attributed = Build.VERSION.SDK_INT >= 31 ? Api31.context(this, callback) : this;
         String language = intent == null ? "" : intent.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE);
+        if (language != null && !language.isEmpty() && AppPreferences.normalizeLanguage(language).isEmpty()) {
+            error(callback, SpeechRecognizer.ERROR_CLIENT);
+            return;
+        }
         client = callback;
         DictationSession created = new DictationSession(attributed, language,
                 new DictationSession.Listener() {

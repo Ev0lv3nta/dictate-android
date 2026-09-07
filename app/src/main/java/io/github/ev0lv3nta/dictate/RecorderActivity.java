@@ -98,6 +98,10 @@ public final class RecorderActivity extends Activity {
         apiKeyStore = new SecureApiKeyStore(this);
         library = new RecordingLibrary(this);
         setContentView(R.layout.activity_recorder);
+        findViewById(android.R.id.content).setOnApplyWindowInsetsListener((view, insets) -> {
+            view.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+            return insets;
+        });
 
         record = findViewById(R.id.record);
         timer = findViewById(R.id.timer);
@@ -162,7 +166,7 @@ public final class RecorderActivity extends Activity {
         AudioCapture.Config config = new AudioCapture.Config(false, maxMillis, maxMillis,
                 maxMillis, appPreferences.getSpeechThresholdDb());
         final AudioCapture active = new AudioCapture(this, config);
-        if (!OperationGate.acquire(active)) { toast("Другая диктовка ещё выполняется"); return; }
+        if (!OperationGate.acquire(active)) { toast(getString(R.string.error_busy)); return; }
         capture = active;
 
         recording = true;
@@ -292,8 +296,7 @@ public final class RecorderActivity extends Activity {
 
     private void renderList() {
         List<RecordingLibrary.Entry> entries = library.list();
-        listMeta.setText(entries.isEmpty() ? "" : entries.size() + " из "
-                + RecordingLibrary.MAX_ENTRIES);
+        listMeta.setText(entries.isEmpty() ? "" : getString(R.string.history_count, entries.size(), RecordingLibrary.MAX_ENTRIES));
         empty.setVisibility(entries.isEmpty() ? View.VISIBLE : View.GONE);
         list.removeAllViews();
         LayoutInflater inflater = LayoutInflater.from(this);
@@ -332,6 +335,15 @@ public final class RecorderActivity extends Activity {
         }
 
         Button play = row.findViewById(R.id.play);
+        if (getResources().getConfiguration().fontScale > 1.3f
+                || getResources().getConfiguration().screenWidthDp < 360) {
+            LinearLayout actions = row.findViewById(R.id.recording_actions);
+            actions.setOrientation(LinearLayout.VERTICAL);
+            for (int i=0;i<actions.getChildCount();i++) {
+                actions.getChildAt(i).setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
+        }
         boolean playing = entry.id.equals(playingId);
         play.setText(playing ? R.string.recording_stop : R.string.recording_play);
         play.setOnClickListener(view -> {
@@ -443,7 +455,7 @@ public final class RecorderActivity extends Activity {
         final Transcription.Config config = new Transcription.Config(providerId, modelId,
                 appPreferences.getLanguageOverride(), appPreferences.getKeyterms());
         final Transcription.Request request = new Transcription.Request();
-        if (!OperationGate.acquire(request)) { toast("Другая диктовка ещё выполняется"); return; }
+        if (!OperationGate.acquire(request)) { toast(getString(R.string.error_busy)); return; }
         pendingRequest = request;
 
         running.add(entry.id);
@@ -456,11 +468,11 @@ public final class RecorderActivity extends Activity {
                 text = Transcription.clientFor(providerId)
                         .transcribe(library.load(entry.id), apiKey, config, request);
             } catch (Transcription.ApiException error) {
-                failure = error.getMessage();
+                failure = Transcription.userMessage(this, error.kind);
             } catch (IOException error) {
-                failure = "Не удалось прочитать сохранённую запись";
+                failure = getString(R.string.error_read_recording);
             } catch (RuntimeException error) {
-                failure = "Не удалось распознать запись";
+                failure = getString(R.string.error_recognize);
             } finally {
                 OperationGate.release(request);
             }
@@ -475,7 +487,7 @@ public final class RecorderActivity extends Activity {
                     return;
                 }
                 if (!ok) {
-                    toast(resultFailure == null ? "Не удалось распознать запись"
+                    toast(resultFailure == null ? getString(R.string.error_recognize)
                             : Transcription.limit(resultFailure));
                 } else {
                     expanded.add(entry.id);
@@ -562,7 +574,7 @@ public final class RecorderActivity extends Activity {
                 && now.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR);
         String clock = new SimpleDateFormat("HH:mm", new Locale("ru")).format(new Date(at));
         if (sameDay) {
-            return "Сегодня " + clock + " · " + DateUtils.getRelativeTimeSpanString(
+            return getString(R.string.history_today, clock) + " · " + DateUtils.getRelativeTimeSpanString(
                     at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)
                     .toString().toLowerCase(new Locale("ru"));
         }

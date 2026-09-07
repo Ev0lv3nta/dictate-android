@@ -1,0 +1,21 @@
+<resources>
+    <string name="error_auth">Ключ отсутствует или отклонён. Проверьте настройки провайдера.</string>
+    <string name="error_billing">Лимит API исчерпан. Проверьте аккаунт провайдера.</string>
+    <string name="error_rate_limit">Слишком много запросов. Повторите позже.</string>
+    <string name="error_invalid_response">Провайдер вернул некорректный или неполный ответ.</string>
+    <string name="error_network">Не удалось подключиться. Проверьте сеть.</string>
+    <string name="error_timeout">Время ожидания истекло. Повторите запрос вручную.</string>
+    <string name="error_invalid_request">Неподдерживаемые настройки. Проверьте модель, язык и словарь.</string>
+    <string name="error_no_match">Речь не обнаружена.</string>
+    <string name="error_server">Ошибка ответа провайдера. Повторите запрос вручную.</string>
+    <string name="error_cancelled">Запрос отменён.</string>
+    <string name="error_busy">Другая операция со звуком ещё выполняется.</string>
+    <string name="error_unreadable">Не удалось расшифровать ключ. Введите его заново.</string>
+    <string name="error_microphone">Разрешите доступ к микрофону.</string>
+    <string name="error_capture">Не удалось открыть микрофон.</string>
+    <string name="error_session">Не удалось завершить диктовку.</string>
+    <string name="error_read_recording">Не удалось прочитать сохранённую запись.</string>
+    <string name="error_recognize">Не удалось распознать запись.</string>
+    <string name="history_count">%1$d / %2$d</string>
+    <string name="history_today">Сегодня %1$s</string>
+</resources>

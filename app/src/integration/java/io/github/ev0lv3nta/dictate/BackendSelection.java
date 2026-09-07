@@ -6,16 +6,23 @@ final class BackendSelection {
     static Transcription.Client client(String provider) {
         return (pcm, key, config, request) -> {
             Transcription.requireAudio(pcm);
-            int crossings=0;
-            int previous=0;
-            for (int i=0;i+1<pcm.length;i+=2) {
-                int sample=(short)((pcm[i]&255)|(pcm[i+1]<<8));
-                if (previous<0 && sample>=0) crossings++;
-                previous=sample;
+            // Inspect active 200 ms windows, not the whole clip including edge padding.
+            // Real-time emulator delivery can insert silence when the host is busy.
+            int matching=0;
+            for (int start=0;start+6400<=pcm.length;start+=3200) {
+                int crossings=0, previous=0;
+                long squares=0;
+                for (int i=start;i<start+6400;i+=2) {
+                    int sample=(short)((pcm[i]&255)|(pcm[i+1]<<8));
+                    if (previous<0 && sample>=0) crossings++;
+                    squares+=(long)sample*sample;
+                    previous=sample;
+                }
+                double hz=crossings*5.0;
+                if (hz>=400 && hz<=480 && squares/3200>1000000) matching++;
             }
-            double hz=crossings*16000.0/(pcm.length/2);
-            android.util.Log.i("DictateFixture", "Signal: " + Math.round(hz) + " Hz, " + pcm.length + " bytes");
-            if (hz<300 || hz>500) throw new Transcription.ApiException(
+            android.util.Log.i("DictateFixture", "Matching tone windows: " + matching + ", bytes: " + pcm.length);
+            if (matching<2) throw new Transcription.ApiException(
                     Transcription.ErrorKind.INVALID_RESPONSE,"Expected 440 Hz microphone fixture");
             return "Fixture: microphone captured " + pcm.length + " PCM bytes.";
         };
