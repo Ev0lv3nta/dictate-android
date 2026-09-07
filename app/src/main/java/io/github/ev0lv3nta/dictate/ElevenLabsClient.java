@@ -11,6 +11,7 @@ final class ElevenLabsClient implements Transcription.Client {
     public String transcribe(byte[] pcm, String apiKey, Transcription.Config config,
                              Transcription.Request request) throws Transcription.ApiException {
         Transcription.requireKey(apiKey, NAME);
+        Transcription.validateConfig(config);
         Transcription.requireAudio(pcm);
 
         Transcription.Multipart multipart = new Transcription.Multipart()
@@ -18,7 +19,7 @@ final class ElevenLabsClient implements Transcription.Client {
                 .field("tag_audio_events", "false")
                 .field("timestamps_granularity", "none")
                 .field("file_format", "pcm_s16le_16")
-                .field("language_code", config.language);
+                .field("language_code", java.util.Locale.forLanguageTag(config.language).getLanguage());
         for (String keyterm : config.keyterms) {
             multipart.field("keyterms", keyterm);
         }

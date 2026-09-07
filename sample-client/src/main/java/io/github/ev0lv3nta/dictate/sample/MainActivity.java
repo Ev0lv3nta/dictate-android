@@ -65,7 +65,10 @@ public final class MainActivity extends Activity implements RecognitionListener 
         button.setOnClickListener(view -> action.run());
         root.addView(button);
     }
-    private void event(String text) { events.append(text + "\n"); }
+    private void event(String text) {
+        events.append(text + "\n");
+        android.util.Log.i("DictateSample", text);
+    }
     @Override public void onReadyForSpeech(Bundle params) { event("ready"); }
     @Override public void onBeginningOfSpeech() { event("speech"); }
     @Override public void onRmsChanged(float rms) {

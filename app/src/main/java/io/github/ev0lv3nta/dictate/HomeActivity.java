@@ -15,6 +15,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.ProgressBar;
 
 /** Short dictation flow; settings and history remain separate screens. */
 public final class HomeActivity extends Activity {
@@ -23,6 +24,7 @@ public final class HomeActivity extends Activity {
     private TextView output;
     private TextView route;
     private Button primary;
+    private ProgressBar level;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -58,6 +60,10 @@ public final class HomeActivity extends Activity {
         status = label("", 18);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         content.addView(status);
+        level = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        level.setMax(100);
+        level.setContentDescription(getString(R.string.indicator_microphone));
+        content.addView(level);
         primary = button(content, getString(R.string.home_record), this::action);
         output = label("", 22);
         output.setTextIsSelectable(true);
@@ -110,6 +116,8 @@ public final class HomeActivity extends Activity {
         primary.setText(state.session == null ? R.string.home_record
                 : state.recording ? R.string.recording_stop : android.R.string.cancel);
         output.setText(state.text);
+        level.setVisibility(state.recording ? View.VISIBLE : View.GONE);
+        level.setProgress(state.level);
     }
 
     @Override protected void onResume() { super.onResume(); render(); }
@@ -158,6 +166,7 @@ public final class HomeActivity extends Activity {
         DictationSession session;
         boolean recording;
         boolean processing;
+        int level;
         long started;
         String text = "";
         String message = "";
@@ -169,7 +178,10 @@ public final class HomeActivity extends Activity {
             update();
         }
         @Override public void speech() { }
-        @Override public void level(float value) { }
+        @Override public void level(float value) {
+            level = Math.max(0, Math.min(100, Math.round(value * 10)));
+            if (screen != null) screen.level.setProgress(level);
+        }
         @Override public void processing() {
             recording = false;
             processing = true;

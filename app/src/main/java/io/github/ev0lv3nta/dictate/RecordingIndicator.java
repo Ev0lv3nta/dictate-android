@@ -25,11 +25,12 @@ final class RecordingIndicator {
         int densityWidth = Math.round(240 * service.getResources().getDisplayMetrics().density);
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(densityWidth,
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         params.y = Math.round(48 * service.getResources().getDisplayMetrics().density);
         view = new Button(service);
-        view.setText("Dictate · Stop");
+        view.setText(service.getString(R.string.indicator_stop));
         view.setAllCaps(false);
         view.setMinHeight(Math.round(48 * service.getResources().getDisplayMetrics().density));
         view.setOnClickListener(v -> stop.run());
@@ -38,7 +39,7 @@ final class RecordingIndicator {
             @Override public void onDraw() {
                 if (dispatched || closed) return;
                 dispatched = true;
-                view.post(() -> {
+                Runnable start = () -> {
                     if (closed) return;
                     try {
                         NotificationManager manager = service.getSystemService(NotificationManager.class);
@@ -46,7 +47,7 @@ final class RecordingIndicator {
                                 NotificationManager.IMPORTANCE_LOW));
                         Notification notification = new Notification.Builder(service, "recording")
                                 .setContentTitle("Dictate")
-                                .setContentText("Microphone active")
+                                .setContentText(service.getString(R.string.indicator_microphone))
                                 .setSmallIcon(android.R.drawable.ic_btn_speak_now).setOngoing(true).build();
                         if (Build.VERSION.SDK_INT >= 30) service.startForeground(1, notification,
                                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
@@ -57,12 +58,24 @@ final class RecordingIndicator {
                         close();
                         refused.run();
                     }
-                });
+                };
+                // Android 15+ requires an actually visible overlay. onDraw runs before
+                // the frame is submitted; wait for that frame, not an arbitrary delay.
+                if (Build.VERSION.SDK_INT >= 29 && view.isHardwareAccelerated()) {
+                    view.getViewTreeObserver().registerFrameCommitCallback(() -> view.postOnAnimation(start));
+                } else view.post(start);
             }
         });
         try { service.getSystemService(WindowManager.class).addView(view, params); }
         catch (RuntimeException error) { close(); return false; }
         return true;
+    }
+
+    void processing(Runnable cancel) {
+        if (closed || view == null) return;
+        service.stopForeground(true);
+        view.setText(service.getString(R.string.indicator_cancel));
+        view.setOnClickListener(v -> cancel.run());
     }
 
     void close() {

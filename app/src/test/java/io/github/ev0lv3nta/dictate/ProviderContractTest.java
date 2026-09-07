@@ -71,6 +71,45 @@ public final class ProviderContractTest {
                 config("google", "gemini-3.5-transcribe"), request));
     }
 
+    @Test public void chatRequestUsesWavAndIgnoresReasoningParts() throws Exception {
+        Transcription.Request request = new Transcription.Request((url,headers,type,data) -> {
+            assertEquals("https://openrouter.ai/api/v1/chat/completions", url);
+            assertEquals("Bearer " + KEY, headers.get("Authorization"));
+            try {
+                JSONObject json = new JSONObject(body(data));
+                assertEquals("google/gemini-3.6-flash", json.getString("model"));
+                assertEquals(1, json.getInt("top_p"));
+                assertEquals("wav", json.getJSONArray("messages").getJSONObject(1)
+                        .getJSONArray("content").getJSONObject(0).getJSONObject("input_audio").getString("format"));
+            } catch (Exception error) { throw new AssertionError(error); }
+            return "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":[{\"type\":\"reasoning\",\"text\":\"private thought\"},{\"type\":\"text\",\"text\":\"Hello\"}]}}]}";
+        });
+        assertEquals("Hello",new OpenRouterClient().transcribe(AUDIO,KEY,
+                config("openrouter","google/gemini-3.6-flash"),request));
+    }
+
+    @Test public void googleGenerateUsesAudioAndSkipsThoughts() throws Exception {
+        Transcription.Request request = new Transcription.Request((url,headers,type,data) -> {
+            assertEquals("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",url);
+            assertEquals(KEY,headers.get("x-goog-api-key"));
+            assertTrue(body(data).contains("inline_data"));
+            return "{\"candidates\":[{\"finishReason\":\"STOP\",\"content\":{\"parts\":[{\"thought\":true,\"text\":\"private\"},{\"text\":\"Hello\"}]}}]}";
+        });
+        assertEquals("Hello",new GoogleAiClient().transcribe(AUDIO,KEY,
+                config("google","gemini-3.6-flash"),request));
+    }
+
+    @Test public void unknownModelAndOversizedAudioNeverReachTransport() throws Exception {
+        Transcription.Request forbidden = new Transcription.Request((u,h,t,b) -> { fail("Invalid request sent"); return ""; });
+        try {
+            new ElevenLabsClient().transcribe(AUDIO,KEY,config("elevenlabs","unknown"),forbidden);
+            fail();
+        } catch (Transcription.ApiException error) { assertEquals(Transcription.ErrorKind.INVALID_REQUEST,error.kind); }
+        try {
+            Transcription.requireAudio(new byte[9600002]); fail();
+        } catch (Transcription.ApiException error) { assertEquals(Transcription.ErrorKind.INVALID_REQUEST,error.kind); }
+    }
+
     @Test public void chatRejectsTruncationAndRefusal() throws Exception {
         for (String response : Arrays.asList(
                 "{\"choices\":[{\"finish_reason\":\"length\",\"message\":{\"content\":\"partial\"}}]}",

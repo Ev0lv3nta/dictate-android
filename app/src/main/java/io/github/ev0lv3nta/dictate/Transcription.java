@@ -7,15 +7,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.SocketTimeoutException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.net.ssl.HttpsURLConnection;
 
 /**
  * Общие для всех провайдеров типы и HTTP-обвязка.
@@ -25,8 +22,6 @@ import javax.net.ssl.HttpsURLConnection;
  */
 final class Transcription {
 
-    private static final int CONNECT_TIMEOUT_MILLIS = 15000;
-    private static final int READ_TIMEOUT_MILLIS = 120000;
     private static final int MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
     private Transcription() {
@@ -127,7 +122,7 @@ final class Transcription {
                 throws ApiException;
     }
 
-    /** Тело запроса известной длины: так HttpsURLConnection не буферизует аудио целиком. */
+    /** Streaming request with a known length; no extra full-size audio copy. */
     interface Body {
         long length();
 
@@ -151,6 +146,9 @@ final class Transcription {
             throw new ApiException(ErrorKind.INVALID_REQUEST, "Unsupported configuration");
         }
         ModelCatalog.Model model = ModelCatalog.model(config.provider, config.model);
+        if (config.keyterms.size() > 1000 || config.language == null
+                || (!config.language.isEmpty() && !config.language.equals(AppPreferences.normalizeLanguage(config.language))))
+            throw new ApiException(ErrorKind.INVALID_REQUEST, "Invalid language or vocabulary");
         if (!config.keyterms.isEmpty() && (!model.supportsKeyterms()
                 || ((model.transport == ModelCatalog.Transport.OPENROUTER_CHAT
                 || model.transport == ModelCatalog.Transport.GOOGLE_GENERATE) && config.keyterms.size() > 200))) {
@@ -190,6 +188,8 @@ final class Transcription {
     }
 
     static void requireAudio(byte[] pcm) throws ApiException {
+        if (pcm != null && (pcm.length % 2 != 0 || pcm.length > 9600000))
+            throw new ApiException(ErrorKind.INVALID_REQUEST,"Invalid PCM size");
         if (pcm == null || pcm.length < AudioCapture.SAMPLE_RATE / 5 * 2) {
             throw new ApiException(ErrorKind.NO_MATCH, "Слишком короткая запись");
         }
@@ -227,7 +227,8 @@ final class Transcription {
                 if (head.isEmpty() || head.charAt(0) != '{') throw new ApiException(ErrorKind.INVALID_RESPONSE, "Invalid JSON");
                 return content;
             }
-        } catch (SocketTimeoutException error) {
+        } catch (java.io.InterruptedIOException error) {
+            if (request.isCancelled()) throw new ApiException(ErrorKind.CANCELLED, "Cancelled");
             throw new ApiException(ErrorKind.TIMEOUT, provider + " не ответил вовремя", error);
         } catch (ApiException error) {
             throw error;
@@ -256,7 +257,7 @@ final class Transcription {
         try {
             return new JSONObject(response);
         } catch (JSONException error) {
-            throw new ApiException(ErrorKind.SERVER, status,
+            throw new ApiException(ErrorKind.INVALID_RESPONSE, status,
                     provider + " вернул некорректный JSON", error);
         }
     }
@@ -336,7 +337,7 @@ final class Transcription {
         }
     }
 
-    private static String readUtf8(InputStream input, int maximumBytes) throws IOException {
+    private static String readUtf8(InputStream input, int maximumBytes) throws IOException, ApiException {
         if (input == null) {
             return "";
         }
@@ -348,7 +349,7 @@ final class Transcription {
             while ((read = stream.read(buffer)) != -1) {
                 total += read;
                 if (total > maximumBytes) {
-                    throw new IOException("Ответ API превышает допустимый размер");
+                    throw new ApiException(ErrorKind.INVALID_RESPONSE, "Response too large");
                 }
                 output.write(buffer, 0, read);
             }
@@ -374,39 +375,6 @@ final class Transcription {
         return new ApiException(kind, status, safeMessage(kind), null);
     }
 
-    /** Достаёт человекочитаемое поле из тела ошибки, не роняясь на чужом формате. */
-    private static String extractErrorMessage(String response) {
-        if (response == null || response.trim().isEmpty()) {
-            return "ошибка без описания";
-        }
-        try {
-            JSONObject object = new JSONObject(response);
-            Object detail = object.opt("detail");
-            if (detail instanceof JSONObject) {
-                JSONObject detailObject = (JSONObject) detail;
-                String message = detailObject.optString("message", "");
-                return limit(message.isEmpty() ? detailObject.toString() : message);
-            }
-            if (detail != null) {
-                return limit(String.valueOf(detail));
-            }
-            Object error = object.opt("error");
-            if (error instanceof JSONObject) {
-                JSONObject errorObject = (JSONObject) error;
-                String message = errorObject.optString("message", "");
-                return limit(message.isEmpty() ? errorObject.toString() : message);
-            }
-            if (error != null) {
-                return limit(String.valueOf(error));
-            }
-            String message = object.optString("message", "");
-            if (!message.isEmpty()) {
-                return limit(message);
-            }
-        } catch (JSONException ignored) {
-        }
-        return limit(response.trim());
-    }
 
     static String limit(String value) {
         String singleLine = value.replace('\n', ' ').replace('\r', ' ').trim();

@@ -18,6 +18,7 @@ final class GoogleAiClient implements Transcription.Client {
     public String transcribe(byte[] pcm, String apiKey, Transcription.Config config,
                              Transcription.Request request) throws Transcription.ApiException {
         Transcription.requireKey(apiKey, NAME);
+        Transcription.validateConfig(config);
         Transcription.requireAudio(pcm);
         if (pcm.length > MAX_INLINE_BYTES) {
             throw new Transcription.ApiException(Transcription.ErrorKind.INVALID_REQUEST,

@@ -31,6 +31,7 @@ final class DictationSession {
     private final int threshold;
     private boolean started;
     private String key;
+    private volatile String savedRecording;
 
     DictationSession(Context context, String clientLanguage, Listener listener) {
         this.context = context;
@@ -66,6 +67,12 @@ final class DictationSession {
         capture.cancel();
         request.cancel();
         key = null;
+        try {
+            worker.execute(() -> {
+                String id=savedRecording;
+                if (id!=null) new RecordingLibrary(context).delete(id);
+            });
+        } catch (java.util.concurrent.RejectedExecutionException finished) { }
         // The old worker releases only its own lease in finally.
         // Let a queued task observe cancellation and release its lease in finally.
         worker.shutdown();
@@ -104,15 +111,20 @@ final class DictationSession {
             if (state.isCancelled()) return;
             if (history) {
                 RecordingLibrary library = new RecordingLibrary(context);
-                synchronized (state) {
-                    if (state.isCancelled()) return;
-                    RecordingLibrary.Entry saved = library.add(pcm, RecordingLibrary.SOURCE_KEYBOARD);
-                    if (saved != null) library.setText(saved.id, text, config.provider, config.model);
+                if (state.isCancelled()) return;
+                RecordingLibrary.Entry saved = library.add(pcm, RecordingLibrary.SOURCE_KEYBOARD);
+                if (saved != null) {
+                    savedRecording=saved.id;
+                    library.setText(saved.id, text, config.provider, config.model);
+                    if (state.isCancelled()) { library.delete(saved.id); return; }
                 }
             }
             new AppPreferences(context).recordLastRun(config.provider, config.model,
                     SystemClock.elapsedRealtime() - start, "OK");
-            main.post(() -> { if (state.complete()) listener.result(text); });
+            main.post(() -> {
+                try { if (state.complete()) listener.result(text); }
+                finally { worker.shutdown(); }
+            });
         } catch (SecurityException error) {
             fail(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS, "Разрешите доступ к микрофону");
         } catch (AudioCapture.CaptureException error) {
@@ -126,7 +138,6 @@ final class DictationSession {
         } finally {
             key = null;
             OperationGate.release(this);
-            worker.shutdown();
         }
     }
 

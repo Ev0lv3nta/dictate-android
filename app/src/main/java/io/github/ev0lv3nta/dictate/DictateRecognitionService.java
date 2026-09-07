@@ -25,6 +25,7 @@ public final class DictateRecognitionService extends RecognitionService {
     private boolean destroyed;
     private RecordingIndicator indicator;
 
+
     @Override protected void onStartListening(Intent intent, Callback callback) {
         if (destroyed) return;
         if (session != null) {
@@ -51,7 +52,14 @@ public final class DictateRecognitionService extends RecognitionService {
                     @Override public void ready() { emit(callback, () -> callback.readyForSpeech(new Bundle())); }
                     @Override public void speech() { emit(callback, callback::beginningOfSpeech); }
                     @Override public void level(float value) { emit(callback, () -> callback.rmsChanged(value)); }
-                    @Override public void processing() { emit(callback, callback::endOfSpeech); }
+                    @Override public void processing() {
+                        if (client != callback || destroyed) return;
+                        if (indicator != null) indicator.processing(() -> {
+                            cancel();
+                            error(callback, SpeechRecognizer.ERROR_CLIENT);
+                        });
+                        emit(callback, callback::endOfSpeech);
+                    }
                     @Override public void result(String text) {
                         if (client != callback || destroyed) return;
                         client = null;

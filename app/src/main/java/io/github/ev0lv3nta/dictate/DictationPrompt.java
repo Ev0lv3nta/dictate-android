@@ -65,32 +65,4 @@ final class DictationPrompt {
         return AppPreferences.normalizeLanguage(language);
     }
 
-    static String legacyBcp47(String language) {
-        if (language == null || language.isEmpty()) {
-            return "";
-        }
-        switch (language) {
-            case "ru": return "ru-RU";
-            case "en": return "en-US";
-            case "uk": return "uk-UA";
-            case "be": return "be-BY";
-            case "kk": return "kk-KZ";
-            case "de": return "de-DE";
-            case "fr": return "fr-FR";
-            case "es": return "es-ES";
-            case "it": return "it-IT";
-            case "pt": return "pt-PT";
-            case "pl": return "pl-PL";
-            case "tr": return "tr-TR";
-            case "nl": return "nl-NL";
-            case "sv": return "sv-SE";
-            case "ar": return "ar-EG";
-            case "he": return "he-IL";
-            case "hi": return "hi-IN";
-            case "zh": return "zh-CN";
-            case "ja": return "ja-JP";
-            case "ko": return "ko-KR";
-            default: return language;
-        }
-    }
 }

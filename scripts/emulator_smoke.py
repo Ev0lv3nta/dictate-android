@@ -23,6 +23,9 @@ import grpc
 from grpc_tools import protoc
 import grpc_tools
 from concurrent.futures import ThreadPoolExecutor
+import queue
+import threading
+import json
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--sdk", required=True)
@@ -71,12 +74,33 @@ def tap(text):
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
 
 def permit_microphone():
-    tree = ui()
-    for item in tree.iter("node"):
-        if item.get("resource-id", "").endswith(("permission_allow_foreground_only_button", "permission_allow_button")):
-            x1,y1,x2,y2 = map(int,re.findall(r"\d+", item.attrib["bounds"]))
-            adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
-            return
+    end=time.monotonic()+15
+    while time.monotonic()<end:
+        tree = ui()
+        for item in tree.iter("node"):
+            if item.get("resource-id", "").endswith(("permission_allow_foreground_only_button", "permission_allow_button")):
+                x1,y1,x2,y2 = map(int,re.findall(r"\d+", item.attrib["bounds"]))
+                adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
+                return
+    raise AssertionError("Runtime microphone permission dialog did not appear")
+
+def wait_event(expected):
+    process=subprocess.Popen(["adb","-s",args.serial,"logcat","-v","raw","-s","DictateSample:I","*:S"],
+                             stdout=subprocess.PIPE,text=True)
+    messages=queue.Queue()
+    def read():
+        for line in process.stdout: messages.put(line.strip())
+    thread=threading.Thread(target=read,daemon=True); thread.start()
+    end=time.monotonic()+12
+    try:
+        while time.monotonic()<end:
+            try: line=messages.get(timeout=max(0.1,end-time.monotonic()))
+            except queue.Empty: break
+            if line==expected: return
+            if line.startswith("error "): raise AssertionError("Speech client: "+line)
+        raise AssertionError("Speech event missing: "+expected)
+    finally:
+        process.terminate(); process.wait(timeout=5)
 
 if not args.discovery:
     roots = [Path.home()/"Library/Caches/TemporaryItems/avd/running",
@@ -134,9 +158,12 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         tap("Разрешить индикатор записи|Allow recording indicator")
         tap("Dictate")
         tap("Allow display over other apps")
+    # A recently visible settings Activity can mask background microphone failures.
+    adb("shell", "am", "force-stop", "io.github.ev0lv3nta.dictate")
     adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate.sample/.MainActivity")
+    adb("logcat","-c")
     tap("Start")
-    node("ready")
+    wait_event("ready")
     inject()
     node("Fixture: microphone captured")
     print("PASS: real AudioRecord, external UID, fixture transcript")
@@ -144,11 +171,20 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         Path(args.screenshots).mkdir(parents=True, exist_ok=True)
         screenshot = subprocess.check_output(["adb", "-s", args.serial, "exec-out", "screencap", "-p"])
         (Path(args.screenshots)/"sample-fixture.png").write_bytes(screenshot)
+    adb("logcat","-c")
     tap("Start")
-    node("ready")
+    wait_event("ready")
     tap("Cancel")
+    adb("logcat","-c")
     tap("Start")
-    node("ready")
+    wait_event("ready")
     tap("Stop")
-    node("error")
+    wait_event("error 6")
     print("PASS: cancel/restart and no speech")
+    if args.screenshots:
+        report = {"api": adb("shell","getprop","ro.build.version.sdk").strip(),
+                  "variant": "integration", "backend": "fixture", "audio": "generated 440 Hz PCM",
+                  "commit": subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
+                  "checks": ["unapproved UID", "cold service microphone", "cancel/restart", "no speech"],
+                  "live_api": "not run — credentials not provided"}
+        (Path(args.screenshots)/"report.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")

@@ -1,0 +1,4 @@
+<resources>
+    <!-- API 31+ binding is brokered by the system speech manager. -->
+    <string name="speech_bind_permission" translatable="false">android.permission.BIND_SPEECH_RECOGNITION_SERVICE</string>
+</resources>

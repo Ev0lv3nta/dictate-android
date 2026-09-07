@@ -1,0 +1,5 @@
+<resources>
+    <string name="indicator_stop">Dictate · Завершить запись</string>
+    <string name="indicator_cancel">Dictate · Отменить обработку</string>
+    <string name="indicator_microphone">Микрофон включён</string>
+</resources>

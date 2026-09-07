@@ -12,6 +12,7 @@ android {
         targetSdk = 36
         versionCode = 2
         versionName = "0.2.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -29,6 +30,7 @@ android {
         getByName("release").java.srcDir("src/production/java")
     }
     buildFeatures { buildConfig = true }
+    testBuildType = "integration"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -51,4 +53,6 @@ dependencies {
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

@@ -202,9 +202,11 @@ public final class RecorderActivity extends Activity {
                 OperationGate.release(active);
             }
 
-            final AudioCapture.Result captured = result;
+            final RecordingLibrary.Entry captured = active.isCancelled() || !appPreferences.isHistoryEnabled()
+                    ? null : saveCaptured(result, config.speechThresholdDb);
+            final boolean limited = result != null && result.stopReason == AudioCapture.StopReason.MAX_DURATION;
             final String captureFailure = failure;
-            mainHandler.post(() -> finishRecording(captured, captureFailure));
+            mainHandler.post(() -> finishRecording(captured, limited, captureFailure));
         });
     }
 
@@ -215,13 +217,12 @@ public final class RecorderActivity extends Activity {
         }
     }
 
-    private void finishRecording(AudioCapture.Result result, String failure) {
+    private void finishRecording(RecordingLibrary.Entry entry, boolean limited, String failure) {
         capture = null;
         recording = false;
         mainHandler.removeCallbacks(timerTick);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (isFinishing() || isDestroyed()) {
-            saveCaptured(result);
             return;
         }
         renderIdle();
@@ -230,24 +231,23 @@ public final class RecorderActivity extends Activity {
             toast(failure);
             return;
         }
-        RecordingLibrary.Entry entry = saveCaptured(result);
         if (entry == null) {
             toast(getString(R.string.recorder_failed));
             return;
         }
-        recordHint.setText(result.stopReason == AudioCapture.StopReason.MAX_DURATION
+        recordHint.setText(limited
                 ? getString(R.string.recorder_limit)
                 : getString(R.string.recorder_hint_saved));
         renderList();
     }
 
     /** Обрезаем тишину по краям: пауза между нажатием и первым словом ни к чему. */
-    private RecordingLibrary.Entry saveCaptured(AudioCapture.Result result) {
+    private RecordingLibrary.Entry saveCaptured(AudioCapture.Result result, int threshold) {
         if (result == null || result.pcm == null || result.pcm.length == 0) {
             return null;
         }
         byte[] pcm = PcmSilenceTrimmer.trimEdges(result.pcm, AudioCapture.SAMPLE_RATE,
-                TRIM_THRESHOLD_DB, TRIM_KEEP_MILLIS).pcm;
+                threshold, TRIM_KEEP_MILLIS).pcm;
         if (pcm.length * 1000L / (AudioCapture.SAMPLE_RATE * 2L) < 200L) {
             return null;
         }
@@ -383,7 +383,7 @@ public final class RecorderActivity extends Activity {
 
     private void startPlayback(RecordingLibrary.Entry entry) {
         stopPlayback();
-        final RecordingPlayer active = new RecordingPlayer();
+        final RecordingPlayer active = new RecordingPlayer(this);
         player = active;
         playingId = entry.id;
         renderList();
