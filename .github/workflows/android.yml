@@ -38,7 +38,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_5
-          emulator-options: -no-window -no-snapshot -no-boot-anim -gpu swiftshader_indirect -grpc 8554 -grpc-use-token -allow-host-audio
+          emulator-options: -no-window -no-snapshot -no-boot-anim -gpu software -memory 4096 -cores 4 -feature -Vulkan -grpc 8554 -grpc-use-token -allow-host-audio
           script: |
             ./gradlew --no-daemon :app:connectedIntegrationAndroidTest
             adb -s emulator-5554 install -r app/build/outputs/apk/integration/app-integration.apk

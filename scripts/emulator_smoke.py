@@ -44,6 +44,16 @@ if not args.serial.startswith("emulator-"):
 def adb(*cmd):
     return subprocess.check_output(["adb", "-s", args.serial, *cmd], text=True, timeout=30)
 
+def failure_details(kind,error,trace):
+    try:
+        print(adb("logcat","-d","-s","DictateSpeech","DictateIndicator","RecognitionService"))
+        if args.screenshots:
+            Path(args.screenshots).mkdir(parents=True,exist_ok=True)
+            (Path(args.screenshots)/"failure.png").write_bytes(subprocess.check_output(
+                ["adb","-s",args.serial,"exec-out","screencap","-p"],timeout=10))
+    finally: sys.__excepthook__(kind,error,trace)
+sys.excepthook=failure_details
+
 screen_width,screen_height=map(int,re.findall(r"(\d+)x(\d+)",adb("shell","wm","size"))[-1])
 
 def ui():
