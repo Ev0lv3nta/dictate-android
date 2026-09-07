@@ -6,7 +6,7 @@ if git grep -l -I -E "$pattern" -- ':!scripts/check-public-tree.sh'; then
     echo 'Potential credential in tracked content; inspect locally.' >&2
     exit 1
 fi
-if git ls-files | grep -E '(^|/)(build|logs|recordings)/|[.]apk$|[.]keystore$|[.]jks$|(^|/)local[.]properties$'; then
+if git ls-files | grep -E '(^|/)(build|logs|recordings)/|[.](apk|keystore|jks|p12|pcm|wav|m4a)$|(^|/)local[.]properties$'; then
     echo 'Private build artifact in Git.' >&2
     exit 1
 fi
