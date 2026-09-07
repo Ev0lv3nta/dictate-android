@@ -1,6 +1,6 @@
 package io.github.ev0lv3nta.dictate;
 
-import android.util.Base64;
+import java.util.Base64;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -55,7 +55,7 @@ final class OpenRouterClient implements Transcription.Client {
         String json;
         try {
             JSONObject audio = new JSONObject()
-                    .put("data", Base64.encodeToString(wav, Base64.NO_WRAP))
+                    .put("data", Base64.getEncoder().encodeToString(wav))
                     .put("format", "wav");
             JSONArray content = new JSONArray().put(new JSONObject()
                     .put("type", "input_audio")
@@ -95,10 +95,17 @@ final class OpenRouterClient implements Transcription.Client {
         if (choices == null || choices.length() == 0) {
             return "";
         }
+        JSONObject choice = choices.optJSONObject(0);
+        if (choice == null || !"stop".equals(choice.optString("finish_reason"))) {
+            throw new Transcription.ApiException(Transcription.ErrorKind.INVALID_RESPONSE, "Incomplete result");
+        }
         JSONObject message = choices.optJSONObject(0) == null
                 ? null : choices.optJSONObject(0).optJSONObject("message");
         if (message == null) {
             return "";
+        }
+        if (message.has("refusal") && !message.isNull("refusal")) {
+            throw new Transcription.ApiException(Transcription.ErrorKind.INVALID_RESPONSE, "Refused result");
         }
         Object content = message.opt("content");
         if (content instanceof String) {

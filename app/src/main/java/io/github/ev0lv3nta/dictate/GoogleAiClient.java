@@ -1,6 +1,6 @@
 package io.github.ev0lv3nta.dictate;
 
-import android.util.Base64;
+import java.util.Base64;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -25,7 +25,7 @@ final class GoogleAiClient implements Transcription.Client {
         }
 
         byte[] wav = WavEncoder.wrap(pcm, AudioCapture.SAMPLE_RATE, 1);
-        String audio = Base64.encodeToString(wav, Base64.NO_WRAP);
+        String audio = Base64.getEncoder().encodeToString(wav);
         ModelCatalog.Model model = ModelCatalog.model(ModelCatalog.PROVIDER_GOOGLE, config.model);
         return model.transport == ModelCatalog.Transport.GOOGLE_GENERATE
                 ? viaGenerateContent(audio, apiKey, config, request)
@@ -61,6 +61,7 @@ final class GoogleAiClient implements Transcription.Client {
                     .put("data", audio)
                     .put("mime_type", "audio/wav");
             json = new JSONObject()
+                    .put("store", false)
                     .put("model", config.model)
                     .put("input", new JSONArray().put(input))
                     .put("generation_config", new JSONObject()

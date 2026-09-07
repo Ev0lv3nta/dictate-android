@@ -89,6 +89,7 @@ final class AudioCapture {
 
     @SuppressLint("MissingPermission")
     Result record(Listener listener) throws CaptureException, InterruptedException {
+        if (cancelled.get() || Thread.currentThread().isInterrupted()) throw new InterruptedException();
         int channel = AudioFormat.CHANNEL_IN_MONO;
         int encoding = AudioFormat.ENCODING_PCM_16BIT;
         int minimumBytes = AudioRecord.getMinBufferSize(SAMPLE_RATE, channel, encoding);
@@ -138,6 +139,7 @@ final class AudioCapture {
         StopReason reason = StopReason.CLIENT;
 
         try {
+            if (cancelled.get()) throw new InterruptedException();
             record.startRecording();
             if (record.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) {
                 throw new CaptureException("AudioRecord не начал запись");
@@ -192,7 +194,8 @@ final class AudioCapture {
                     reason = StopReason.SILENCE;
                     break;
                 }
-                if (elapsed >= config.maxRecordingMillis) {
+                if (elapsed >= config.maxRecordingMillis
+                        || pcm.size() >= (long) config.maxRecordingMillis * SAMPLE_RATE * 2 / 1000) {
                     reason = StopReason.MAX_DURATION;
                     break;
                 }
@@ -217,6 +220,8 @@ final class AudioCapture {
 
     void requestStop() {
         stopRequested.set(true);
+        AudioRecord record = activeRecord;
+        if (record != null) stopQuietly(record);
     }
 
     void cancel() {

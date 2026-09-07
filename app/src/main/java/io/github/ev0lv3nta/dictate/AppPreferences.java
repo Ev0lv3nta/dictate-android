@@ -55,7 +55,7 @@ final class AppPreferences {
 
     String getProvider() {
         String value = preferences.getString(KEY_PROVIDER, ModelCatalog.defaultProvider());
-        return ModelCatalog.isKnownProvider(value) ? value : ModelCatalog.defaultProvider();
+        return value;
     }
 
     String getModel() {
@@ -63,14 +63,18 @@ final class AppPreferences {
     }
 
     String getModel(String providerId) {
+        if (!ModelCatalog.isKnownProvider(providerId)) return "";
         ModelCatalog.Provider provider = ModelCatalog.provider(providerId);
         String value = preferences.getString(KEY_MODEL_PREFIX + provider.id, null);
         if (value == null && ModelCatalog.PROVIDER_ELEVENLABS.equals(provider.id)) {
             // Настройка из версии с единственным провайдером.
             value = preferences.getString(KEY_LEGACY_MODEL, null);
         }
-        return value != null && provider.hasModel(value) ? value : provider.defaultModel();
+        return value != null ? value : provider.defaultModel();
     }
+
+    boolean isHistoryEnabled() { return preferences.getBoolean("history_opt_in", false); }
+    void setHistoryEnabled(boolean enabled) { preferences.edit().putBoolean("history_opt_in", enabled).apply(); }
 
     String getLanguageOverride() {
         String value = preferences.getString(KEY_LANGUAGE, "");
@@ -243,8 +247,12 @@ final class AppPreferences {
         if (value.isEmpty()) {
             return "";
         }
-        String base = value.split("-", 2)[0].toLowerCase(Locale.ROOT);
-        return base.matches("[a-z]{2,3}") ? base : "";
+        try {
+            Locale locale = new Locale.Builder().setLanguageTag(value).build();
+            return locale.getLanguage().matches("[a-z]{2,3}") ? locale.toLanguageTag() : "";
+        } catch (java.util.IllformedLocaleException invalid) {
+            return "";
+        }
     }
 
     static List<String> parseKeyterms(String text) {

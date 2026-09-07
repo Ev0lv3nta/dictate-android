@@ -55,13 +55,17 @@ final class DictationPrompt {
      * читается как кусок текста, а "Russian" — никогда.
      */
     static String englishName(String language) {
-        String name = new Locale(language).getDisplayLanguage(Locale.ENGLISH);
+        String name = Locale.forLanguageTag(language).getDisplayLanguage(Locale.ENGLISH);
         return name == null || name.isEmpty() || name.equals(language)
                 ? "the language of the recording" : name;
     }
 
     /** Приводит наш двухбуквенный код к BCP-47, который ждёт Google. */
     static String bcp47(String language) {
+        return AppPreferences.normalizeLanguage(language);
+    }
+
+    static String legacyBcp47(String language) {
         if (language == null || language.isEmpty()) {
             return "";
         }

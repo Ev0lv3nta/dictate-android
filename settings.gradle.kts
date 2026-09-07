@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Dictate"
 include(":app")
+include(":sample-client")

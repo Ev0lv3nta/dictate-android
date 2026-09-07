@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Dictate</string>
+    <string name="home_privacy">Звук отправляется выбранному облачному провайдеру с вашим API-ключом. История на устройстве сохраняется только по вашему выбору.</string>
+    <string name="home_record">Продиктовать</string>
+    <string name="home_settings">Настройки и подключение</string>
+    <string name="home_ready">Готово к новой диктовке</string>
+    <string name="home_preparing">Подготовка микрофона…</string>
+    <string name="home_listening">Идёт запись</string>
+    <string name="home_processing">Обработка записи…</string>
+    <string name="home_cancelled">Диктовка отменена</string>
     <string name="lead">Сервис принимает диктовку от разрешённых приложений, отправляет запись выбранной модели и возвращает текст через Android SpeechRecognizer.</string>
 
     <string name="section_provider">Провайдер</string>

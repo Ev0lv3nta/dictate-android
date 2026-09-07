@@ -17,8 +17,8 @@ public final class CoreLogicTest {
 
     @Test
     public void normalizesLanguageAndVocabulary() {
-        assertEquals("ru", AppPreferences.normalizeLanguage("ru-RU"));
-        assertEquals("en", AppPreferences.normalizeLanguage("EN_us"));
+        assertEquals("ru-RU", AppPreferences.normalizeLanguage("ru-RU"));
+        assertEquals("en-US", AppPreferences.normalizeLanguage("EN_us"));
         assertEquals("", AppPreferences.normalizeLanguage("russian"));
 
         List<String> terms = AppPreferences.parseKeytermsStrict(
@@ -39,7 +39,8 @@ public final class CoreLogicTest {
 
         assertFalse(CallerPolicy.isAllowed("org.example.keyboard", null,
                 new LinkedHashSet<>()));
-        assertTrue(CallerPolicy.isAllowed("org.example.keyboard", null, packages));
+        assertFalse(CallerPolicy.isAllowed("org.example.keyboard", null, packages));
+        assertTrue(CallerPolicy.isAllowed("org.example.keyboard", new String[]{"org.example.keyboard"}, packages));
         assertTrue(CallerPolicy.isAllowed(null,
                 new String[]{"com.example.ime"}, packages));
         assertFalse(CallerPolicy.isAllowed("org.other.app",

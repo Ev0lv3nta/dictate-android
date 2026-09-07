@@ -137,6 +137,10 @@ public final class RecorderActivity extends Activity {
     // --- Запись ---
 
     private void toggleRecording() {
+        if (!appPreferences.isHistoryEnabled()) {
+            startActivity(new android.content.Intent(this, HomeActivity.class));
+            return;
+        }
         if (recording) {
             stopRecording();
             return;
@@ -158,6 +162,7 @@ public final class RecorderActivity extends Activity {
         AudioCapture.Config config = new AudioCapture.Config(false, maxMillis, maxMillis,
                 maxMillis, appPreferences.getSpeechThresholdDb());
         final AudioCapture active = new AudioCapture(this, config);
+        if (!OperationGate.acquire(active)) { toast("Другая диктовка ещё выполняется"); return; }
         capture = active;
 
         recording = true;
@@ -193,6 +198,8 @@ public final class RecorderActivity extends Activity {
                 failure = getString(R.string.permission_microphone_missing);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
+            } finally {
+                OperationGate.release(active);
             }
 
             final AudioCapture.Result captured = result;
@@ -427,7 +434,7 @@ public final class RecorderActivity extends Activity {
      * смысл кнопки в том, чтобы попробовать другую на том же звуке.
      */
     private void recognize(RecordingLibrary.Entry entry) {
-        if (running.contains(entry.id)) {
+        if (!running.isEmpty()) {
             return;
         }
         final String providerId = appPreferences.getProvider();
@@ -436,6 +443,7 @@ public final class RecorderActivity extends Activity {
         final Transcription.Config config = new Transcription.Config(providerId, modelId,
                 appPreferences.getLanguageOverride(), appPreferences.getKeyterms());
         final Transcription.Request request = new Transcription.Request();
+        if (!OperationGate.acquire(request)) { toast("Другая диктовка ещё выполняется"); return; }
         pendingRequest = request;
 
         running.add(entry.id);
@@ -453,8 +461,10 @@ public final class RecorderActivity extends Activity {
                 failure = "Не удалось прочитать сохранённую запись";
             } catch (RuntimeException error) {
                 failure = "Не удалось распознать запись";
+            } finally {
+                OperationGate.release(request);
             }
-            if (text != null) {
+            if (text != null && !request.isCancelled()) {
                 library.setText(entry.id, text, providerId, modelId);
             }
             final String resultFailure = failure;

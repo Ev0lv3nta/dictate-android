@@ -12,8 +12,10 @@ final class CallerPolicy {
         if (allowedPackages == null || allowedPackages.isEmpty()) {
             return false;
         }
-        if (attributedPackage != null && allowedPackages.contains(attributedPackage)) {
-            return true;
+        if (attributedPackage != null) {
+            if (!allowedPackages.contains(attributedPackage) || uidPackages == null) return false;
+            for (String name : uidPackages) if (attributedPackage.equals(name)) return true;
+            return false;
         }
         if (uidPackages != null) {
             for (String packageName : uidPackages) {
