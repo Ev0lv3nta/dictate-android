@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       QEMU_AUDIO_DRV: pa
+      QEMU_PA_SERVER: unix:/tmp/dictate-pulse.socket
+      PULSE_SERVER: unix:/tmp/dictate-pulse.socket
       PULSE_SOURCE: dictate_input.monitor
       PULSE_SINK: dictate_output
     timeout-minutes: 35
@@ -41,10 +43,12 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y pulseaudio pulseaudio-utils
           pulseaudio --start --exit-idle-time=-1
+          PULSE_SERVER= pactl load-module module-native-protocol-unix socket=/tmp/dictate-pulse.socket
           pactl load-module module-null-sink sink_name=dictate_input rate=48000 channels=2
           pactl load-module module-null-sink sink_name=dictate_output rate=48000 channels=2
           pactl set-default-source dictate_input.monitor
           pactl set-default-sink dictate_output
+          pactl info
       - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ matrix.api }}

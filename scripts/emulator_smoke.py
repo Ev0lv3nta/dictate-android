@@ -181,6 +181,8 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         if args.audio_backend=="pulse":
             if os.environ.get("PULSE_SOURCE") != "dictate_input.monitor":
                 raise AssertionError("PulseAudio test source is not configured")
+            readers=subprocess.check_output(["pactl","list","short","source-outputs"],text=True,timeout=5)
+            assert readers.strip(), "Emulator did not connect to the virtual microphone"
             rate=args.input_rate
             audio=b"".join(struct.pack("<h",int(10000*math.sin(2*math.pi*440*i/rate))) * args.input_channels
                            for i in range(rate*6))
