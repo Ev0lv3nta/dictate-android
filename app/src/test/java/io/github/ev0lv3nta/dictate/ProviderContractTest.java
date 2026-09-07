@@ -110,6 +110,12 @@ public final class ProviderContractTest {
         } catch (Transcription.ApiException error) { assertEquals(Transcription.ErrorKind.INVALID_REQUEST,error.kind); }
     }
 
+    @Test public void transcriptCannotOverflowBinderCallback() throws Exception {
+        char[] text=new char[32769]; Arrays.fill(text,'x');
+        try { Transcription.requireText("fixture",new String(text),200); fail(); }
+        catch (Transcription.ApiException error) { assertEquals(Transcription.ErrorKind.INVALID_RESPONSE,error.kind); }
+    }
+
     @Test public void chatRejectsTruncationAndRefusal() throws Exception {
         for (String response : Arrays.asList(
                 "{\"choices\":[{\"finish_reason\":\"length\",\"message\":{\"content\":\"partial\"}}]}",

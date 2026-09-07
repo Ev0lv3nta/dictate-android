@@ -23,6 +23,7 @@ import java.util.Map;
 final class Transcription {
 
     private static final int MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_TRANSCRIPT_CHARS = 32768;
 
     private Transcription() {
     }
@@ -269,6 +270,10 @@ final class Transcription {
 
     static String requireText(String provider, String text, int status) throws ApiException {
         String value = text == null ? "" : text.trim();
+        // Keep callbacks and saved Activity state comfortably below Binder's limit.
+        if (value.length() > MAX_TRANSCRIPT_CHARS) {
+            throw new ApiException(ErrorKind.INVALID_RESPONSE, status, "Transcript too large", null);
+        }
         if (value.isEmpty()) {
             throw new ApiException(ErrorKind.NO_MATCH, status,
                     provider + " не распознал речь", null);
