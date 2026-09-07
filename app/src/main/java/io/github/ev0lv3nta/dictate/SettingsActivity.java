@@ -242,10 +242,19 @@ public final class SettingsActivity extends Activity {
     }
     private TextView heading(String text,int size) {
         TextView label=new TextView(this); label.setText(text); label.setTextSize(size); label.setTextColor(getColor(R.color.ink));
+        if (size >= 20) label.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
         label.setPadding(0,dp(12),0,dp(8)); content.addView(label); return label;
     }
     private void row(String text,Runnable action) {
         Button button=new Button(this); button.setText(text); button.setAllCaps(false); button.setMinHeight(dp(48));
+        button.setBackgroundResource(R.drawable.btn_ghost);
+        button.setTextColor(getColor(R.color.ink));
+        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        button.setPadding(dp(14),dp(12),dp(14),dp(12));
+        button.setStateListAnimator(null);
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.bottomMargin=dp(8); button.setLayoutParams(params);
         button.setOnClickListener(v -> action.run()); content.addView(button);
     }
     private int dp(int value) { return Math.round(value*getResources().getDisplayMetrics().density); }

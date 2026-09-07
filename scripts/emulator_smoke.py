@@ -147,14 +147,14 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
 
     def inject():
         def packets():
-            fmt = pb.AudioFormat(samplingRate=48000, channels=0, format=1, mode=1)
+            fmt = pb.AudioFormat(samplingRate=48000, channels=0, format=1, mode=0)
             start = time.monotonic()
             for frame in range(300):
                 audio = b"".join(struct.pack("<h", int(10000*math.sin(2*math.pi*440*i/48000)))
                                  for i in range(frame*960,(frame+1)*960))
                 yield pb.AudioPacket(format=fmt, audio=audio, timestamp=int(time.time()*1000000))
-                remaining = start+(frame+1)*0.02-time.monotonic()
-                if remaining > 0: time.sleep(remaining)  # pacing audio, not test synchronization
+                # Buffered mode applies emulator backpressure instead of overwriting
+                # microphone packets when a shared CI host temporarily falls behind.
         client.injectAudio(packets(), metadata=[("authorization","Bearer "+token)], timeout=10)
 
     if args.release_check:

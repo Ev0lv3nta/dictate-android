@@ -25,6 +25,7 @@ public final class HomeActivity extends Activity {
     private TextView route;
     private Button primary;
     private ProgressBar level;
+    private Button copy;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -53,10 +54,13 @@ public final class HomeActivity extends Activity {
             return insets;
         });
         TextView title = label("Dictate", 32);
+        title.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
         content.addView(title);
         route = label("", 16);
         content.addView(route);
-        content.addView(label(getString(R.string.home_privacy), 16));
+        TextView privacy = label(getString(R.string.home_privacy), 14);
+        privacy.setTextColor(getColor(R.color.ink_2));
+        content.addView(privacy);
         status = label("", 18);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         content.addView(status);
@@ -65,10 +69,12 @@ public final class HomeActivity extends Activity {
         level.setContentDescription(getString(R.string.indicator_microphone));
         content.addView(level);
         primary = button(content, getString(R.string.home_record), this::action);
+        primary.setBackgroundResource(R.drawable.btn_primary);
+        primary.setTextColor(getColor(R.color.accent_ink));
         output = label("", 22);
         output.setTextIsSelectable(true);
         content.addView(output);
-        button(content, getString(R.string.recording_copy_short), () -> {
+        copy = button(content, getString(R.string.recording_copy_short), () -> {
             if (!state.text.isEmpty()) {
                 getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Dictate", state.text));
                 status.setText(R.string.recording_copied);
@@ -108,7 +114,9 @@ public final class HomeActivity extends Activity {
     private void render() {
         if (status == null) return;
         AppPreferences prefs = new AppPreferences(this);
-        route.setText(prefs.getProvider() + " · " + prefs.getModel());
+        ModelCatalog.Provider provider = ModelCatalog.provider(prefs.getProvider());
+        String model = provider.hasModel(prefs.getModel()) ? provider.model(prefs.getModel()).title : prefs.getModel();
+        route.setText((ModelCatalog.isKnownProvider(prefs.getProvider()) ? provider.title : prefs.getProvider()) + " · " + model);
         String text = state.message;
         if (state.recording) text = getString(R.string.home_listening) + " · "
                 + (SystemClock.elapsedRealtime() - state.started) / 1000 + " s";
@@ -116,6 +124,8 @@ public final class HomeActivity extends Activity {
         primary.setText(state.session == null ? R.string.home_record
                 : state.recording ? R.string.recording_stop : android.R.string.cancel);
         output.setText(state.text);
+        output.setVisibility(state.text.isEmpty() ? View.GONE : View.VISIBLE);
+        copy.setVisibility(state.text.isEmpty() ? View.GONE : View.VISIBLE);
         level.setVisibility(state.recording ? View.VISIBLE : View.GONE);
         level.setProgress(state.level);
     }
@@ -155,6 +165,14 @@ public final class HomeActivity extends Activity {
         button.setText(text);
         button.setAllCaps(false);
         button.setMinHeight(dp(48));
+        button.setBackgroundResource(R.drawable.btn_ghost);
+        button.setTextColor(getColor(R.color.ink));
+        button.setPadding(dp(16), dp(12), dp(16), dp(12));
+        button.setStateListAnimator(null);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.topMargin = dp(12);
+        button.setLayoutParams(params);
         button.setOnClickListener(view -> action.run());
         parent.addView(button);
         return button;
