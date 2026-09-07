@@ -1,4 +1,5 @@
 <resources>
+    <string name="indicator_ready_stop">Microphone active · Stop recording</string>
     <string name="indicator_stop">Dictate · Stop recording</string>
     <string name="indicator_cancel">Dictate · Cancel processing</string>
     <string name="indicator_microphone">Microphone active</string>

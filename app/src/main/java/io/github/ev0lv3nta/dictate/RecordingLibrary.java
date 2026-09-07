@@ -120,11 +120,16 @@ final class RecordingLibrary {
     private final AtomicFile indexFile;
 
     RecordingLibrary(Context context) {
+        this(context, null);
+    }
+
+    RecordingLibrary(Context context, AtomicFile indexOverride) {
         Context application = context.getApplicationContext();
         preferences = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         directory = new File(application.getFilesDir(), DIRECTORY);
         legacy = new File(application.getFilesDir(), LEGACY_NAME);
-        indexFile = new AtomicFile(new File(application.getFilesDir(), "recordings-index.json"));
+        indexFile = indexOverride != null ? indexOverride
+                : new AtomicFile(new File(application.getFilesDir(), "recordings-index.json"));
         importLegacy();
         synchronized (LOCK) { recover(); }
     }
@@ -195,7 +200,7 @@ final class RecordingLibrary {
                     pcm.length * 1000L / (AudioCapture.SAMPLE_RATE * 2L),
                     pcm.length, source, null, null, null);
             entries.add(0, entry);
-            if (!write(evict(entries))) { target.delete(); return null; }
+            if (!writeWithQuota(entries)) { target.delete(); return null; }
             return entry;
         }
     }
@@ -268,7 +273,7 @@ final class RecordingLibrary {
         return false;
     }
 
-    /** Лишние по количеству и по объёму записи уходят вместе со своими файлами. */
+    /** Select the retained index first; never delete old audio before its commit. */
     private List<Entry> evict(List<Entry> entries) {
         List<Entry> kept = new ArrayList<>(entries.size());
         long total = 0L;
@@ -276,14 +281,19 @@ final class RecordingLibrary {
             long actualSize = file(entry.id).length();
             boolean overflow = kept.size() >= MAX_ENTRIES || actualSize > MAX_BYTES
                     || total + actualSize > MAX_TOTAL_BYTES;
-            if (overflow) {
-                file(entry.id).delete();
-            } else {
+            if (!overflow) {
                 kept.add(entry);
                 total += actualSize;
             }
         }
         return kept;
+    }
+
+    private boolean writeWithQuota(List<Entry> entries) {
+        List<Entry> kept=evict(entries);
+        if (!write(kept)) return false;
+        for (Entry entry:entries) if (!contains(kept,entry.id)) file(entry.id).delete();
+        return true;
     }
 
     private List<Entry> read() {
@@ -355,13 +365,14 @@ final class RecordingLibrary {
             }
         }
         entries.sort((a,b) -> Long.compare(b.createdAt,a.createdAt));
-        write(evict(entries));
+        writeWithQuota(entries);
     }
 
     /** Единственная запись из прежней версии приложения переезжает в каталог. */
     private void importLegacy() {
         synchronized (LOCK) {
-            if (!legacy.isFile() || legacy.length() <= 0) {
+            if (!legacy.isFile() || legacy.length() <= 0 || legacy.length() > MAX_BYTES
+                    || legacy.length() % 2 != 0) {
                 return;
             }
             if (!directory.isDirectory() && !directory.mkdirs()) {
@@ -378,7 +389,7 @@ final class RecordingLibrary {
                 entries.add(0, new Entry(id, createdAt,
                         size * 1000L / (AudioCapture.SAMPLE_RATE * 2L), size,
                         SOURCE_KEYBOARD, null, null, null));
-                if (write(evict(entries))) legacy.delete();
+                if (writeWithQuota(entries)) legacy.delete();
             }
         }
     }

@@ -174,6 +174,7 @@ public final class RecorderActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         record.setBackgroundResource(R.drawable.mic_button_live);
         record.setImageResource(R.drawable.ic_stop);
+        record.setContentDescription(getString(R.string.home_preparing));
         recordHint.setText(R.string.recorder_hint_live);
         timer.setText(R.string.recorder_zero);
         mainHandler.post(timerTick);
@@ -193,7 +194,11 @@ public final class RecorderActivity extends Activity {
 
                     @Override
                     public void onRms(float normalizedRms) {
-                        mainHandler.post(() -> renderLevel(normalizedRms));
+                        mainHandler.post(() -> {
+                            if (capture != active || !recording) return;
+                            record.setContentDescription(getString(R.string.indicator_ready_stop));
+                            renderLevel(normalizedRms);
+                        });
                     }
                 });
             } catch (AudioCapture.CaptureException error) {
@@ -271,6 +276,7 @@ public final class RecorderActivity extends Activity {
         recordHint.setText(granted
                 ? R.string.recorder_hint_idle
                 : R.string.recorder_hint_permission);
+        record.setContentDescription(getString(R.string.recorder_start));
     }
 
     private void renderLevel(float normalizedRms) {

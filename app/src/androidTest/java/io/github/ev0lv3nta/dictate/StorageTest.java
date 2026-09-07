@@ -57,6 +57,24 @@ public class StorageTest {
         catch (IllegalArgumentException expected) { }
         recovered.clear();
     }
+    @Test public void failedIndexCommitDoesNotEvictExistingAudio() throws Exception {
+        RecordingLibrary library=new RecordingLibrary(context);
+        library.clear();
+        byte[] pcm=new byte[16000];
+        String oldest=library.add(pcm,RecordingLibrary.SOURCE_APP).id;
+        for (int i=1;i<10;i++) library.add(pcm,RecordingLibrary.SOURCE_APP);
+        android.util.AtomicFile failedIndex=new android.util.AtomicFile(
+                new File(context.getFilesDir(),"recordings-index.json")) {
+            @Override public java.io.FileOutputStream startWrite() throws java.io.IOException {
+                throw new java.io.IOException("Simulated full storage");
+            }
+        };
+        RecordingLibrary failing=new RecordingLibrary(context,failedIndex);
+        assertNull(failing.add(pcm,RecordingLibrary.SOURCE_APP));
+        assertArrayEquals(pcm,library.load(oldest));
+        assertEquals(10,library.count());
+        library.clear();
+    }
     @Test public void legacyAudioMigratesOnlyAfterCommittedIndex() throws Exception {
         RecordingLibrary library=new RecordingLibrary(context);
         library.clear();

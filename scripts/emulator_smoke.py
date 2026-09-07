@@ -33,6 +33,7 @@ parser.add_argument("--sdk", required=True)
 parser.add_argument("--discovery")
 parser.add_argument("--screenshots")
 parser.add_argument("--serial", default="emulator-5554")
+parser.add_argument("--input-rate",type=int,choices=[16000,48000],default=16000)
 parser.add_argument("--configured", action="store_true")
 parser.add_argument("--release-check", action="store_true")
 parser.add_argument("--upgrade-apk", help="Signed higher-version APK; used only with --release-check")
@@ -42,6 +43,8 @@ if not args.serial.startswith("emulator-"):
 
 def adb(*cmd):
     return subprocess.check_output(["adb", "-s", args.serial, *cmd], text=True, timeout=30)
+
+screen_width,screen_height=map(int,re.findall(r"(\d+)x(\d+)",adb("shell","wm","size"))[-1])
 
 def ui():
     end=time.monotonic()+15
@@ -79,10 +82,18 @@ def tap(text, checked=None):
     for attempt in range(5):
         try:
             n = node(text, 4)
+            x1,y1,x2,y2=map(int,re.findall(r"\d+",n.attrib["bounds"]))
+            if y1<screen_height*.06 or y2>screen_height*.94 or y2-y1<50:
+                start,end=(.3,.8) if y1<screen_height*.06 else (.8,.3)
+                adb("shell","input","swipe",str(screen_width//2),str(int(screen_height*start)),
+                    str(screen_width//2),str(int(screen_height*end)),"400")
+                continue
             break
         except AssertionError:
             if attempt == 4: raise
-            adb("shell", "input", "swipe", "540", "1900", "540", "700", "400")
+            adb("shell", "input", "swipe", str(screen_width//2), str(int(screen_height*.8)),
+                str(screen_width//2),str(int(screen_height*.3)),"400")
+    else: raise AssertionError("UI target remains clipped: " + text)
     if checked is not None and n.get("checked") == str(checked).lower(): return
     x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.attrib["bounds"]))
     adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
@@ -156,11 +167,13 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
 
     def inject():
         def packets():
-            fmt = pb.AudioFormat(samplingRate=48000, channels=0, format=1, mode=0)
+            rate=args.input_rate
+            frame_samples=rate//50
+            fmt = pb.AudioFormat(samplingRate=rate, channels=0, format=1, mode=0)
             start = time.monotonic()
             for frame in range(300):
-                audio = b"".join(struct.pack("<h", int(10000*math.sin(2*math.pi*440*i/48000)))
-                                 for i in range(frame*960,(frame+1)*960))
+                audio = b"".join(struct.pack("<h", int(10000*math.sin(2*math.pi*440*i/rate)))
+                                 for i in range(frame*frame_samples,(frame+1)*frame_samples))
                 yield pb.AudioPacket(format=fmt, audio=audio, timestamp=int(time.time()*1000000))
                 # Buffered mode applies emulator backpressure instead of overwriting
                 # microphone packets when a shared CI host temporarily falls behind.
@@ -184,7 +197,7 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate/.HomeActivity")
         tap("=History")
         tap("io.github.ev0lv3nta.dictate:id/record")
-        node("Recording — tap to stop")
+        node("Microphone active · Stop recording")
         inject()
         tap("io.github.ev0lv3nta.dictate:id/record")
         node("Recording saved")
@@ -280,6 +293,7 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
     if args.screenshots:
         report = {"api": adb("shell","getprop","ro.build.version.sdk").strip(),
                   "variant": "integration", "backend": "fixture", "audio": "generated 440 Hz PCM",
+                  "input_sample_rate": args.input_rate,
                   "commit": subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
                   "checks": (["unapproved UID"] if not args.configured else []) +
                             ["cold service microphone", "cancel/restart", "no speech", "permission revocation", "history off"],
