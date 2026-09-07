@@ -14,6 +14,7 @@ final class BackendSelection {
                 previous=sample;
             }
             double hz=crossings*16000.0/(pcm.length/2);
+            android.util.Log.i("DictateFixture", "Signal: " + Math.round(hz) + " Hz, " + pcm.length + " bytes");
             if (hz<300 || hz>500) throw new Transcription.ApiException(
                     Transcription.ErrorKind.INVALID_RESPONSE,"Expected 440 Hz microphone fixture");
             return "Fixture: microphone captured " + pcm.length + " PCM bytes.";

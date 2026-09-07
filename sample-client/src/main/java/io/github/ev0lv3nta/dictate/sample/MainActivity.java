@@ -20,6 +20,7 @@ public final class MainActivity extends Activity implements RecognitionListener 
     private TextView events;
     private TextView result;
     private boolean levelReported;
+    private boolean streamReported;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -43,6 +44,7 @@ public final class MainActivity extends Activity implements RecognitionListener 
             }
             events.setText("");
             levelReported = false;
+            streamReported = false;
             Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                     .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-GB");
             recognizer.startListening(intent);
@@ -53,6 +55,10 @@ public final class MainActivity extends Activity implements RecognitionListener 
         events = new TextView(this);
         root.addView(events);
         setContentView(root);
+        connect();
+    }
+
+    private void connect() {
         recognizer = SpeechRecognizer.createSpeechRecognizer(this, new ComponentName(
                 "io.github.ev0lv3nta.dictate", "io.github.ev0lv3nta.dictate.DictateRecognitionService"));
         recognizer.setRecognitionListener(this);
@@ -72,11 +78,15 @@ public final class MainActivity extends Activity implements RecognitionListener 
     @Override public void onReadyForSpeech(Bundle params) { event("ready"); }
     @Override public void onBeginningOfSpeech() { event("speech"); }
     @Override public void onRmsChanged(float rms) {
+        if (!streamReported) { streamReported = true; event("audio stream"); }
         if (rms > 1 && !levelReported) { levelReported = true; event("audio level > 1"); }
     }
     @Override public void onBufferReceived(byte[] buffer) { }
     @Override public void onEndOfSpeech() { event("processing"); }
-    @Override public void onError(int code) { event("error " + code); }
+    @Override public void onError(int code) {
+        event("error " + code);
+        if (code == 11) { recognizer.destroy(); connect(); }
+    }
     @Override public void onResults(Bundle data) {
         ArrayList<String> texts = data.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         result.setText(texts == null || texts.isEmpty() ? "Empty result" : texts.get(0));

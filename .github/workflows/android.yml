@@ -44,6 +44,7 @@ jobs:
             adb -s emulator-5554 install -r app/build/outputs/apk/integration/app-integration.apk
             adb -s emulator-5554 install sample-client/build/outputs/apk/debug/sample-client-debug.apk
             uv run scripts/emulator_smoke.py --sdk "$ANDROID_HOME" --screenshots build/emulator-report
+            ./gradlew --no-daemon :sample-client:connectedDebugAndroidTest
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

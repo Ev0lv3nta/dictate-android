@@ -57,6 +57,18 @@ public class StorageTest {
         catch (IllegalArgumentException expected) { }
         recovered.clear();
     }
+    @Test public void legacyAudioMigratesOnlyAfterCommittedIndex() throws Exception {
+        RecordingLibrary library=new RecordingLibrary(context);
+        library.clear();
+        File old=new File(context.getFilesDir(),"last_recording.pcm");
+        byte[] pcm=new byte[16000]; pcm[200]=17;
+        Files.write(old.toPath(),pcm);
+        RecordingLibrary migrated=new RecordingLibrary(context);
+        assertFalse(old.exists());
+        assertEquals(1,migrated.count());
+        assertArrayEquals(pcm,migrated.load(migrated.newest().id));
+        migrated.clear();
+    }
     @Test public void historyStartsDisabled() {
         AppPreferences preferences=new AppPreferences(context);
         assertFalse(preferences.isHistoryEnabled());

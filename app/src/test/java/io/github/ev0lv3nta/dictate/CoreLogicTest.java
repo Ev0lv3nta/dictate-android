@@ -63,6 +63,19 @@ public final class CoreLogicTest {
         assertFalse(cancelled.requestStop());
     }
 
+    @Test public void oldOwnerCannotReleaseNewOperation() {
+        Object old=new Object(), next=new Object();
+        assertTrue(OperationGate.acquire(old));
+        assertFalse(OperationGate.acquire(next));
+        OperationGate.release(next);
+        assertFalse(OperationGate.acquire(next));
+        OperationGate.release(old);
+        assertTrue(OperationGate.acquire(next));
+        OperationGate.release(old);
+        assertFalse(OperationGate.acquire(old));
+        OperationGate.release(next);
+    }
+
     @Test
     public void trimsPcmAndBuildsWav() {
         byte[] silence = pcm(16000, 1000, 0, 0, 0);

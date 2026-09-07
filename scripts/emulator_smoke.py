@@ -26,6 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 import queue
 import threading
 import json
+import atexit
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--sdk", required=True)
@@ -45,7 +46,16 @@ def ui():
     while time.monotonic()<end:
         try:
             adb("shell", "uiautomator", "dump", "/data/local/tmp/dictate-test.xml")
-            return ET.fromstring(adb("shell", "cat", "/data/local/tmp/dictate-test.xml"))
+            tree=ET.fromstring(adb("shell", "cat", "/data/local/tmp/dictate-test.xml"))
+            # Fresh Google images can show a launcher ANR during initial setup.
+            # Dismiss only that system app; a Dictate ANR remains a test failure.
+            if any(n.get("text", "") == "Pixel Launcher isn't responding" for n in tree.iter("node")):
+                close=next(n for n in tree.iter("node") if n.get("text", "") == "Close app")
+                x1,y1,x2,y2=map(int,re.findall(r"\d+",close.attrib["bounds"]))
+                adb("shell","input","tap",str((x1+x2)//2),str((y1+y2)//2))
+                print("Dismissed Pixel Launcher startup ANR; Dictate ANRs are not suppressed")
+                continue
+            return tree
         except (subprocess.CalledProcessError, ET.ParseError):
             continue
     raise AssertionError("uiautomator could not read the current window")
@@ -84,23 +94,27 @@ def permit_microphone():
                 return
     raise AssertionError("Runtime microphone permission dialog did not appear")
 
+events=queue.Queue()
+event_log=subprocess.Popen(["adb","-s",args.serial,"logcat","-T","1","-v","raw","-s","DictateSample:I","*:S"],
+                           stdout=subprocess.PIPE,text=True)
+def read_events():
+    for line in event_log.stdout: events.put(line.strip())
+threading.Thread(target=read_events,daemon=True).start()
+atexit.register(event_log.terminate)
+
+def clear_events():
+    while True:
+        try: events.get_nowait()
+        except queue.Empty: return
+
 def wait_event(expected):
-    process=subprocess.Popen(["adb","-s",args.serial,"logcat","-v","raw","-s","DictateSample:I","*:S"],
-                             stdout=subprocess.PIPE,text=True)
-    messages=queue.Queue()
-    def read():
-        for line in process.stdout: messages.put(line.strip())
-    thread=threading.Thread(target=read,daemon=True); thread.start()
     end=time.monotonic()+12
-    try:
-        while time.monotonic()<end:
-            try: line=messages.get(timeout=max(0.1,end-time.monotonic()))
-            except queue.Empty: break
-            if line==expected: return
-            if line.startswith("error "): raise AssertionError("Speech client: "+line)
-        raise AssertionError("Speech event missing: "+expected)
-    finally:
-        process.terminate(); process.wait(timeout=5)
+    while time.monotonic()<end:
+        try: line=events.get(timeout=max(0.1,end-time.monotonic()))
+        except queue.Empty: break
+        if line==expected: return
+        if line.startswith("error "): raise AssertionError("Speech client: "+line)
+    raise AssertionError("Speech event missing: "+expected)
 
 if not args.discovery:
     roots = [Path.home()/"Library/Caches/TemporaryItems/avd/running",
@@ -160,10 +174,12 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         tap("Allow display over other apps")
     # A recently visible settings Activity can mask background microphone failures.
     adb("shell", "am", "force-stop", "io.github.ev0lv3nta.dictate")
+    adb("shell", "am", "force-stop", "io.github.ev0lv3nta.dictate.sample")
     adb("shell", "am", "start", "-n", "io.github.ev0lv3nta.dictate.sample/.MainActivity")
-    adb("logcat","-c")
+    clear_events()
     tap("Start")
     wait_event("ready")
+    wait_event("audio stream")
     inject()
     node("Fixture: microphone captured")
     print("PASS: real AudioRecord, external UID, fixture transcript")
@@ -171,11 +187,11 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         Path(args.screenshots).mkdir(parents=True, exist_ok=True)
         screenshot = subprocess.check_output(["adb", "-s", args.serial, "exec-out", "screencap", "-p"])
         (Path(args.screenshots)/"sample-fixture.png").write_bytes(screenshot)
-    adb("logcat","-c")
+    clear_events()
     tap("Start")
     wait_event("ready")
     tap("Cancel")
-    adb("logcat","-c")
+    clear_events()
     tap("Start")
     wait_event("ready")
     tap("Stop")

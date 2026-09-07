@@ -164,7 +164,9 @@ final class AudioCapture {
                     continue;
                 }
 
-                writeLittleEndian(pcm, samples, read);
+                long maximumBytes = (long) config.maxRecordingMillis * SAMPLE_RATE * 2 / 1000;
+                int remainingSamples = (int) Math.max(0, (maximumBytes - pcm.size()) / 2);
+                writeLittleEndian(pcm, samples, Math.min(read, remainingSamples));
                 long now = SystemClock.elapsedRealtime();
                 long elapsed = now - startedAt;
                 double db = dbfs(samples, read);
