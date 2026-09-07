@@ -1,0 +1,51 @@
+name: Android integration
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  microphone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 31, 34, 36]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Build test variants
+        run: ./gradlew --no-daemon :app:assembleIntegration :sample-client:assembleDebug
+      - name: Enable KVM
+        run: |
+          sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          emulator-options: -no-window -no-snapshot -no-boot-anim -gpu swiftshader_indirect -grpc 8554 -grpc-use-token -allow-host-audio
+          script: |
+            adb -s emulator-5554 install app/build/outputs/apk/integration/app-integration.apk
+            adb -s emulator-5554 install sample-client/build/outputs/apk/debug/sample-client-debug.apk
+            uv run scripts/emulator_smoke.py --sdk "$ANDROID_HOME" --screenshots build/emulator-report
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: android-${{ matrix.api }}
+          path: build/emulator-report
+          if-no-files-found: ignore

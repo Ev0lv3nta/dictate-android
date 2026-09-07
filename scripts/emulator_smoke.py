@@ -26,7 +26,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--sdk", required=True)
-parser.add_argument("--discovery", required=True)
+parser.add_argument("--discovery")
+parser.add_argument("--screenshots")
 parser.add_argument("--serial", default="emulator-5554")
 parser.add_argument("--configured", action="store_true")
 args = parser.parse_args()
@@ -68,6 +69,13 @@ def permit_microphone():
             adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
             return
 
+if not args.discovery:
+    roots = [Path.home()/"Library/Caches/TemporaryItems/avd/running",
+             Path(os.environ.get("XDG_RUNTIME_DIR", "/run/user/"+str(os.getuid())))/"avd/running",
+             Path("/tmp/android-"+os.environ.get("USER", "runner"))/"avd/running"]
+    candidates = [p for root in roots for p in root.glob("pid_*.ini")]
+    if not candidates: raise SystemExit("No emulator discovery file; pass --discovery")
+    args.discovery = str(max(candidates, key=lambda p: p.stat().st_mtime))
 config = dict(line.strip().split("=",1) for line in Path(args.discovery).read_text().splitlines()
               if "=" in line)
 token = config["grpc.token"]
@@ -123,6 +131,10 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
     inject()
     node("Fixture: microphone captured")
     print("PASS: real AudioRecord, external UID, fixture transcript")
+    if args.screenshots:
+        Path(args.screenshots).mkdir(parents=True, exist_ok=True)
+        screenshot = subprocess.check_output(["adb", "-s", args.serial, "exec-out", "screencap", "-p"])
+        (Path(args.screenshots)/"sample-fixture.png").write_bytes(screenshot)
     tap("Start")
     node("ready")
     tap("Cancel")
