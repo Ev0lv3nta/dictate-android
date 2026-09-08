@@ -48,7 +48,7 @@ def adb(*cmd):
 
 def failure_details(kind,error,trace):
     try:
-        print(adb("logcat","-d","-s","DictateSpeech","DictateIndicator","RecognitionService"))
+        print(adb("logcat","-d","-s","DictateSpeech","DictateIndicator","DictateFixture","RecognitionService"))
         if args.screenshots:
             Path(args.screenshots).mkdir(parents=True,exist_ok=True)
             (Path(args.screenshots)/"failure.png").write_bytes(subprocess.check_output(
@@ -194,13 +194,16 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
         def packets():
             rate=args.input_rate
             frame_samples=rate//50
-            fmt = pb.AudioFormat(samplingRate=rate, channels=args.input_channels-1, format=1, mode=0)
+            fmt = pb.AudioFormat(samplingRate=rate, channels=args.input_channels-1, format=1,
+                                 mode=pb.AudioFormat.MODE_REAL_TIME)
+            started = time.monotonic()
             for frame in range(300):
                 audio = b"".join(struct.pack("<h", int(10000*math.sin(2*math.pi*440*i/rate))) * args.input_channels
                                  for i in range(frame*frame_samples,(frame+1)*frame_samples))
                 yield pb.AudioPacket(format=fmt, audio=audio, timestamp=int(time.time()*1000000))
-                # Buffered mode applies emulator backpressure instead of overwriting
-                # microphone packets when a shared CI host temporarily falls behind.
+                # Pace real-time delivery by PCM duration, not RPC consumption speed.
+                remaining = started + (frame + 1) / 50 - time.monotonic()
+                if remaining > 0: time.sleep(remaining)
         client.injectAudio(packets(), metadata=[("authorization","Bearer "+token)], timeout=10)
 
     if args.release_check:

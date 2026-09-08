@@ -6,8 +6,11 @@ final class BackendSelection {
     static Transcription.Client client(String provider) {
         return (pcm, key, config, request) -> {
             Transcription.requireAudio(pcm);
-            if (!ToneFixture.present(pcm)) throw new Transcription.ApiException(
-                    Transcription.ErrorKind.INVALID_RESPONSE,"Expected 440 Hz microphone fixture");
+            if (!ToneFixture.present(pcm)) {
+                android.util.Log.w("DictateFixture", ToneFixture.diagnostics(pcm));
+                throw new Transcription.ApiException(
+                        Transcription.ErrorKind.INVALID_RESPONSE,"Expected 440 Hz microphone fixture");
+            }
             return "Fixture: microphone captured " + pcm.length + " PCM bytes.";
         };
     }
