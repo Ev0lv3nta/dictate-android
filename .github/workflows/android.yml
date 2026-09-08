@@ -15,6 +15,7 @@ jobs:
   microphone:
     runs-on: ubuntu-latest
     env:
+      DISPLAY: :99
       QEMU_AUDIO_DRV: pa
       QEMU_PA_SERVER: unix:/tmp/dictate-pulse.socket
       PULSE_SERVER: unix:/tmp/dictate-pulse.socket
@@ -41,7 +42,14 @@ jobs:
       - name: Virtual microphone
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y pulseaudio pulseaudio-utils
+          sudo apt-get install -y pulseaudio pulseaudio-utils xvfb
+          # Headless QEMU stubs out PulseAudio; run the normal emulator on a virtual display.
+          Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp > /tmp/dictate-xvfb.log 2>&1 &
+          for attempt in $(seq 1 50); do
+            if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then break; fi
+            sleep 0.1
+          done
+          xdpyinfo -display "$DISPLAY" >/dev/null
           env -u PULSE_SERVER pulseaudio --start --exit-idle-time=-1
           env -u PULSE_SERVER pactl load-module module-native-protocol-unix socket=/tmp/dictate-pulse.socket
           pactl load-module module-null-sink sink_name=dictate_input rate=48000 channels=2
@@ -55,7 +63,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_5
-          emulator-options: -no-window -no-snapshot -no-boot-anim -gpu software -memory 4096 -cores 4 -feature -Vulkan -grpc 8554 -grpc-use-token -allow-host-audio
+          emulator-options: -no-snapshot -no-boot-anim -gpu software -memory 4096 -cores 4 -feature -Vulkan -grpc 8554 -grpc-use-token -allow-host-audio
           script: |
             ./gradlew --no-daemon :app:connectedIntegrationAndroidTest
             adb -s emulator-5554 install -r app/build/outputs/apk/integration/app-integration.apk
