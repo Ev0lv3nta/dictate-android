@@ -68,6 +68,8 @@ jobs:
           pactl info
       - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
+          # Pin the previous stable engine: 37.1.11 truncates injected audio on these x86 images.
+          emulator-build: 15507667 # 36.6.11 stable
           api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
