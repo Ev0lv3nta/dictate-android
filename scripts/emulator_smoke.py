@@ -36,6 +36,7 @@ parser.add_argument("--serial", default="emulator-5554")
 parser.add_argument("--input-rate",type=int,choices=[16000,48000],default=16000)
 parser.add_argument("--input-channels",type=int,choices=[1,2],default=1)
 parser.add_argument("--audio-backend",choices=["grpc","pulse"],default="grpc")
+parser.add_argument("--grpc-delivery",choices=["realtime","buffered"],default="realtime")
 parser.add_argument("--configured", action="store_true")
 parser.add_argument("--release-check", action="store_true")
 parser.add_argument("--upgrade-apk", help="Signed higher-version APK; used only with --release-check")
@@ -195,7 +196,8 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
             rate=args.input_rate
             frame_samples=rate//50
             fmt = pb.AudioFormat(samplingRate=rate, channels=args.input_channels-1, format=1,
-                                 mode=pb.AudioFormat.MODE_REAL_TIME)
+                                 mode=(pb.AudioFormat.MODE_REAL_TIME if args.grpc_delivery=="realtime"
+                                       else pb.AudioFormat.MODE_UNSPECIFIED))
             started = time.monotonic()
             for frame in range(300):
                 audio = b"".join(struct.pack("<h", int(10000*math.sin(2*math.pi*440*i/rate))) * args.input_channels
@@ -204,7 +206,7 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
                 # Pace real-time delivery by PCM duration, not RPC consumption speed.
                 remaining = started + (frame + 1) / 50 - time.monotonic()
                 if remaining > 0: time.sleep(remaining)
-        client.injectAudio(packets(), metadata=[("authorization","Bearer "+token)], timeout=10)
+        client.injectAudio(packets(), metadata=[("authorization","Bearer "+token)], timeout=30)
 
     if args.release_check:
         adb("shell","am","start","-W","--activity-clear-top","-n","io.github.ev0lv3nta.dictate/.HomeActivity")
@@ -321,6 +323,7 @@ with tempfile.TemporaryDirectory(prefix="dictate-proto-") as directory:
                   "input_sample_rate": args.input_rate,
                   "input_channels": args.input_channels,
                   "audio_backend": args.audio_backend,
+                  "grpc_delivery": args.grpc_delivery if args.audio_backend=="grpc" else None,
                   "commit": subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
                   "checks": (["unapproved UID"] if not args.configured else []) +
                             ["cold service microphone", "cancel/restart", "no speech", "permission revocation", "history off"],
