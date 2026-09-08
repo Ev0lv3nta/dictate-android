@@ -1,0 +1,15 @@
+Dictate — Copyright 2026 Ev0lv3nta. MIT License: Dictate-MIT.txt.
+
+Bundled libraries:
+OkHttp 4.12.0 — Square / OkHttp contributors — Apache-2.0.txt
+https://github.com/square/okhttp/tree/parent-4.12.0
+Okio 3.6.0 — Square / Okio contributors — Apache-2.0.txt
+https://github.com/square/okio/tree/parent-3.6.0
+Kotlin standard library 2.2.10, JDK adapters 1.9.10 — JetBrains — Apache-2.0.txt
+https://github.com/JetBrains/kotlin
+JetBrains annotations 13.0 — JetBrains — Apache-2.0.txt
+https://github.com/JetBrains/java-annotations
+
+Public Suffix List data bundled by OkHttp — MPL-2.0.txt
+https://publicsuffix.org/list/public_suffix_list.dat
+Original notice: okhttp3/internal/publicsuffix/NOTICE in this APK.

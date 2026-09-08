@@ -7,15 +7,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.SocketTimeoutException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.net.ssl.HttpsURLConnection;
 
 /**
  * Общие для всех провайдеров типы и HTTP-обвязка.
@@ -25,15 +22,17 @@ import javax.net.ssl.HttpsURLConnection;
  */
 final class Transcription {
 
-    private static final int CONNECT_TIMEOUT_MILLIS = 15000;
-    private static final int READ_TIMEOUT_MILLIS = 120000;
     private static final int MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_TRANSCRIPT_CHARS = 32768;
 
     private Transcription() {
     }
 
     enum ErrorKind {
         AUTH,
+        BILLING,
+        RATE_LIMIT,
+        INVALID_RESPONSE,
         NETWORK,
         TIMEOUT,
         INVALID_REQUEST,
@@ -57,7 +56,8 @@ final class Transcription {
         }
 
         ApiException(ErrorKind kind, int httpStatus, String message, Throwable cause) {
-            super(message, cause);
+            // Exception messages and causes must never expose a provider response.
+            super(safeMessage(kind));
             this.kind = kind;
             this.httpStatus = httpStatus;
         }
@@ -74,20 +74,24 @@ final class Transcription {
             this.provider = provider;
             this.model = model;
             this.language = language;
-            this.keyterms = keyterms == null ? new ArrayList<String>() : keyterms;
+            this.keyterms = java.util.Collections.unmodifiableList(keyterms == null
+                    ? new ArrayList<String>() : new ArrayList<>(keyterms));
         }
     }
 
     /** Ручка отмены: закрывает соединение, если клавиатура успела передумать. */
     static final class Request {
+        final Transport transport;
+        Request() { this(null); }
+        Request(Transport transport) { this.transport = transport; }
         private volatile boolean cancelled;
-        private volatile HttpsURLConnection connection;
+        private volatile okhttp3.Call connection;
 
         void cancel() {
             cancelled = true;
-            HttpsURLConnection current = connection;
+            okhttp3.Call current = connection;
             if (current != null) {
-                current.disconnect();
+                current.cancel();
             }
         }
 
@@ -95,14 +99,14 @@ final class Transcription {
             return cancelled;
         }
 
-        void attach(HttpsURLConnection value) {
+        void attach(okhttp3.Call value) {
             connection = value;
             if (cancelled) {
-                value.disconnect();
+                value.cancel();
             }
         }
 
-        void detach(HttpsURLConnection value) {
+        void detach(okhttp3.Call value) {
             if (connection == value) {
                 connection = null;
             }
@@ -114,7 +118,12 @@ final class Transcription {
                 throws ApiException;
     }
 
-    /** Тело запроса известной длины: так HttpsURLConnection не буферизует аудио целиком. */
+    interface Transport {
+        String post(String url, Map<String, String> headers, String contentType, Body body)
+                throws ApiException;
+    }
+
+    /** Streaming request with a known length; no extra full-size audio copy. */
     interface Body {
         long length();
 
@@ -128,7 +137,54 @@ final class Transcription {
         if (ModelCatalog.PROVIDER_GOOGLE.equals(provider)) {
             return new GoogleAiClient();
         }
-        return new ElevenLabsClient();
+        if (ModelCatalog.PROVIDER_ELEVENLABS.equals(provider)) return new ElevenLabsClient();
+        throw new IllegalArgumentException("Unsupported provider");
+    }
+
+    static void validateConfig(Config config) throws ApiException {
+        if (!ModelCatalog.isKnownProvider(config.provider)
+                || !ModelCatalog.provider(config.provider).hasModel(config.model)) {
+            throw new ApiException(ErrorKind.INVALID_REQUEST, "Unsupported configuration");
+        }
+        ModelCatalog.Model model = ModelCatalog.model(config.provider, config.model);
+        if (config.keyterms.size() > 1000 || config.language == null
+                || (!config.language.isEmpty() && !config.language.equals(AppPreferences.normalizeLanguage(config.language))))
+            throw new ApiException(ErrorKind.INVALID_REQUEST, "Invalid language or vocabulary");
+        if (!config.keyterms.isEmpty() && (!model.supportsKeyterms()
+                || ((model.transport == ModelCatalog.Transport.OPENROUTER_CHAT
+                || model.transport == ModelCatalog.Transport.GOOGLE_GENERATE) && config.keyterms.size() > 200))) {
+            throw new ApiException(ErrorKind.INVALID_REQUEST, "Unsupported vocabulary");
+        }
+    }
+
+    static String userMessage(android.content.Context context, ErrorKind kind) {
+        int[] messages = {R.string.error_auth, R.string.error_billing, R.string.error_rate_limit, R.string.error_invalid_response, R.string.error_network, R.string.error_timeout, R.string.error_invalid_request, R.string.error_no_match, R.string.error_server, R.string.error_cancelled};
+        return context.getString(messages[kind.ordinal()]);
+    }
+
+    static String safeMessage(ErrorKind kind) {
+        switch (kind) {
+            case AUTH: return "Ключ отсутствует или отклонён. Проверьте настройки провайдера.";
+            case BILLING: return "Лимит API исчерпан. Проверьте аккаунт провайдера.";
+            case RATE_LIMIT: return "Слишком много запросов. Повторите позже.";
+            case INVALID_RESPONSE: return "Провайдер вернул некорректный или неполный ответ.";
+            case NETWORK: return "Не удалось подключиться. Проверьте сеть и повторите.";
+            case TIMEOUT: return "Время ожидания истекло. Повторите запрос вручную.";
+            case NO_MATCH: return "Речь не обнаружена.";
+            case INVALID_REQUEST: return "Неподдерживаемые настройки. Проверьте модель, язык и словарь.";
+            case CANCELLED: return "Запрос отменён.";
+            default: return "Ошибка ответа провайдера. Повторите запрос вручную.";
+        }
+    }
+
+    static int androidError(ErrorKind kind) {
+        switch (kind) {
+            case NETWORK: return android.speech.SpeechRecognizer.ERROR_NETWORK;
+            case TIMEOUT: return android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT;
+            case NO_MATCH: return android.speech.SpeechRecognizer.ERROR_NO_MATCH;
+            case SERVER: return android.speech.SpeechRecognizer.ERROR_SERVER;
+            default: return android.speech.SpeechRecognizer.ERROR_CLIENT;
+        }
     }
 
     static void requireKey(String apiKey, String provider) throws ApiException {
@@ -138,6 +194,8 @@ final class Transcription {
     }
 
     static void requireAudio(byte[] pcm) throws ApiException {
+        if (pcm != null && (pcm.length % 2 != 0 || pcm.length > 9600000))
+            throw new ApiException(ErrorKind.INVALID_REQUEST,"Invalid PCM size");
         if (pcm == null || pcm.length < AudioCapture.SAMPLE_RATE / 5 * 2) {
             throw new ApiException(ErrorKind.NO_MATCH, "Слишком короткая запись");
         }
@@ -149,54 +207,34 @@ final class Transcription {
         if (request.isCancelled()) {
             throw new ApiException(ErrorKind.CANCELLED, "Запрос отменён");
         }
-        HttpsURLConnection connection = null;
+        if (request.transport != null) return request.transport.post(url, headers, contentType, body);
+        okhttp3.Call connection = null;
         try {
-            connection = (HttpsURLConnection) new URL(url).openConnection();
+            okhttp3.Request.Builder builder = new okhttp3.Request.Builder().url(url)
+                    .header("Accept", "application/json")
+                    .header("User-Agent", "DictateAndroid/" + BuildConfig.VERSION_NAME);
+            for (Map.Entry<String, String> header : headers.entrySet()) builder.header(header.getKey(), header.getValue());
+            builder.post(new okhttp3.RequestBody() {
+                @Override public okhttp3.MediaType contentType() { return okhttp3.MediaType.get(contentType); }
+                @Override public long contentLength() { return body.length(); }
+                @Override public boolean isOneShot() { return true; }
+                @Override public void writeTo(okio.BufferedSink sink) throws IOException { body.writeTo(sink.outputStream()); }
+            });
+            connection = HttpPolicy.CLIENT.newCall(builder.build());
             request.attach(connection);
             if (request.isCancelled()) {
                 throw new ApiException(ErrorKind.CANCELLED, "Запрос отменён");
             }
-            connection.setRequestMethod("POST");
-            connection.setDoOutput(true);
-            connection.setUseCaches(false);
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
-            connection.setReadTimeout(READ_TIMEOUT_MILLIS);
-            connection.setRequestProperty("Accept", "application/json");
-            connection.setRequestProperty("User-Agent", "DictateAndroid/1.1");
-            connection.setRequestProperty("Content-Type", contentType);
-            for (Map.Entry<String, String> header : headers.entrySet()) {
-                connection.setRequestProperty(header.getKey(), header.getValue());
+            try (okhttp3.Response response = connection.execute()) {
+                if (!response.isSuccessful()) throw httpError(provider, response.code(), "");
+                if (response.body() == null) throw new ApiException(ErrorKind.INVALID_RESPONSE, "Empty response");
+                String content = readUtf8(response.body().byteStream(), MAX_RESPONSE_BYTES);
+                String head = content.trim();
+                if (head.isEmpty() || head.charAt(0) != '{') throw new ApiException(ErrorKind.INVALID_RESPONSE, "Invalid JSON");
+                return content;
             }
-            connection.setFixedLengthStreamingMode(body.length());
-
-            try (OutputStream output = connection.getOutputStream()) {
-                body.writeTo(output);
-                output.flush();
-            }
-            if (request.isCancelled()) {
-                throw new ApiException(ErrorKind.CANCELLED, "Запрос отменён");
-            }
-
-            int status = connection.getResponseCode();
-            InputStream stream = status >= 200 && status < 300
-                    ? connection.getInputStream() : connection.getErrorStream();
-            String response = readUtf8(stream, MAX_RESPONSE_BYTES);
-            if (status < 200 || status >= 300) {
-                throw httpError(provider, status, response);
-            }
-            // Провайдер иногда отвечает 200 с пустым или не-JSON телом. Раньше
-            // это давало невнятное «некорректный JSON»; теперь в сообщение идут
-            // длина и заголовки ответа — по ним видно, что произошло. Само тело
-            // не логируем и не пересказываем: в нём может быть расшифровка.
-            String head = response.trim();
-            if (head.isEmpty() || (head.charAt(0) != '{' && head.charAt(0) != '[')) {
-                throw new ApiException(ErrorKind.SERVER, status,
-                        provider + ": ответ не JSON, len=" + response.length()
-                                + " ctype=" + connection.getContentType()
-                                + " enc=" + connection.getContentEncoding(), null);
-            }
-            return response;
-        } catch (SocketTimeoutException error) {
+        } catch (java.io.InterruptedIOException error) {
+            if (request.isCancelled()) throw new ApiException(ErrorKind.CANCELLED, "Cancelled");
             throw new ApiException(ErrorKind.TIMEOUT, provider + " не ответил вовремя", error);
         } catch (ApiException error) {
             throw error;
@@ -209,7 +247,7 @@ final class Transcription {
         } finally {
             if (connection != null) {
                 request.detach(connection);
-                connection.disconnect();
+                connection.cancel();
             }
         }
     }
@@ -225,13 +263,17 @@ final class Transcription {
         try {
             return new JSONObject(response);
         } catch (JSONException error) {
-            throw new ApiException(ErrorKind.SERVER, status,
+            throw new ApiException(ErrorKind.INVALID_RESPONSE, status,
                     provider + " вернул некорректный JSON", error);
         }
     }
 
     static String requireText(String provider, String text, int status) throws ApiException {
         String value = text == null ? "" : text.trim();
+        // Keep callbacks and saved Activity state comfortably below Binder's limit.
+        if (value.length() > MAX_TRANSCRIPT_CHARS) {
+            throw new ApiException(ErrorKind.INVALID_RESPONSE, status, "Transcript too large", null);
+        }
         if (value.isEmpty()) {
             throw new ApiException(ErrorKind.NO_MATCH, status,
                     provider + " не распознал речь", null);
@@ -305,7 +347,7 @@ final class Transcription {
         }
     }
 
-    private static String readUtf8(InputStream input, int maximumBytes) throws IOException {
+    private static String readUtf8(InputStream input, int maximumBytes) throws IOException, ApiException {
         if (input == null) {
             return "";
         }
@@ -317,7 +359,7 @@ final class Transcription {
             while ((read = stream.read(buffer)) != -1) {
                 total += read;
                 if (total > maximumBytes) {
-                    throw new IOException("Ответ API превышает допустимый размер");
+                    throw new ApiException(ErrorKind.INVALID_RESPONSE, "Response too large");
                 }
                 output.write(buffer, 0, read);
             }
@@ -331,48 +373,18 @@ final class Transcription {
             kind = ErrorKind.AUTH;
         } else if (status == 400 || status == 404 || status == 413 || status == 422) {
             kind = ErrorKind.INVALID_REQUEST;
-        } else if (status == 408 || status == 429) {
+        } else if (status == 402) {
+            kind = ErrorKind.BILLING;
+        } else if (status == 429) {
+            kind = ErrorKind.RATE_LIMIT;
+        } else if (status == 408) {
             kind = ErrorKind.TIMEOUT;
         } else {
             kind = ErrorKind.SERVER;
         }
-        return new ApiException(kind, status,
-                provider + ": " + extractErrorMessage(response), null);
+        return new ApiException(kind, status, safeMessage(kind), null);
     }
 
-    /** Достаёт человекочитаемое поле из тела ошибки, не роняясь на чужом формате. */
-    private static String extractErrorMessage(String response) {
-        if (response == null || response.trim().isEmpty()) {
-            return "ошибка без описания";
-        }
-        try {
-            JSONObject object = new JSONObject(response);
-            Object detail = object.opt("detail");
-            if (detail instanceof JSONObject) {
-                JSONObject detailObject = (JSONObject) detail;
-                String message = detailObject.optString("message", "");
-                return limit(message.isEmpty() ? detailObject.toString() : message);
-            }
-            if (detail != null) {
-                return limit(String.valueOf(detail));
-            }
-            Object error = object.opt("error");
-            if (error instanceof JSONObject) {
-                JSONObject errorObject = (JSONObject) error;
-                String message = errorObject.optString("message", "");
-                return limit(message.isEmpty() ? errorObject.toString() : message);
-            }
-            if (error != null) {
-                return limit(String.valueOf(error));
-            }
-            String message = object.optString("message", "");
-            if (!message.isEmpty()) {
-                return limit(message);
-            }
-        } catch (JSONException ignored) {
-        }
-        return limit(response.trim());
-    }
 
     static String limit(String value) {
         String singleLine = value.replace('\n', ' ').replace('\r', ' ').trim();

@@ -3,6 +3,7 @@ package io.github.ev0lv3nta.dictate;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
+import android.util.AtomicFile;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -116,13 +117,21 @@ final class RecordingLibrary {
     private final SharedPreferences preferences;
     private final File directory;
     private final File legacy;
+    private final AtomicFile indexFile;
 
     RecordingLibrary(Context context) {
+        this(context, null);
+    }
+
+    RecordingLibrary(Context context, AtomicFile indexOverride) {
         Context application = context.getApplicationContext();
         preferences = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         directory = new File(application.getFilesDir(), DIRECTORY);
         legacy = new File(application.getFilesDir(), LEGACY_NAME);
+        indexFile = indexOverride != null ? indexOverride
+                : new AtomicFile(new File(application.getFilesDir(), "recordings-index.json"));
         importLegacy();
+        synchronized (LOCK) { recover(); }
     }
 
     /** Записи от новой к старой. */
@@ -191,7 +200,7 @@ final class RecordingLibrary {
                     pcm.length * 1000L / (AudioCapture.SAMPLE_RATE * 2L),
                     pcm.length, source, null, null, null);
             entries.add(0, entry);
-            write(evict(entries));
+            if (!writeWithQuota(entries)) { target.delete(); return null; }
             return entry;
         }
     }
@@ -242,14 +251,16 @@ final class RecordingLibrary {
 
     void clear() {
         synchronized (LOCK) {
-            for (Entry entry : read()) {
-                file(entry.id).delete();
-            }
+            File[] files = directory.listFiles();
+            if (files != null) for (File file : files) if (file.isFile()) file.delete();
+            legacy.delete();
+            preferences.edit().clear().commit();
             write(Collections.<Entry>emptyList());
         }
     }
 
     private File file(String id) {
+        if (!id.matches("(?:legacy-)?[0-9]+(?:-[0-9]+)?")) throw new IllegalArgumentException("Invalid recording ID");
         return new File(directory, id + ".pcm");
     }
 
@@ -262,26 +273,36 @@ final class RecordingLibrary {
         return false;
     }
 
-    /** Лишние по количеству и по объёму записи уходят вместе со своими файлами. */
+    /** Select the retained index first; never delete old audio before its commit. */
     private List<Entry> evict(List<Entry> entries) {
         List<Entry> kept = new ArrayList<>(entries.size());
         long total = 0L;
         for (Entry entry : entries) {
-            boolean overflow = kept.size() >= MAX_ENTRIES
-                    || (!kept.isEmpty() && total + entry.sizeBytes > MAX_TOTAL_BYTES);
-            if (overflow) {
-                file(entry.id).delete();
-            } else {
+            long actualSize = file(entry.id).length();
+            boolean overflow = kept.size() >= MAX_ENTRIES || actualSize > MAX_BYTES
+                    || total + actualSize > MAX_TOTAL_BYTES;
+            if (!overflow) {
                 kept.add(entry);
-                total += entry.sizeBytes;
+                total += actualSize;
             }
         }
         return kept;
     }
 
+    private boolean writeWithQuota(List<Entry> entries) {
+        List<Entry> kept=evict(entries);
+        if (!write(kept)) return false;
+        for (Entry entry:entries) if (!contains(kept,entry.id)) file(entry.id).delete();
+        return true;
+    }
+
     private List<Entry> read() {
         List<Entry> entries = new ArrayList<>();
         String raw = preferences.getString(KEY_INDEX, "");
+        if (indexFile.getBaseFile().exists()) {
+            try { raw = new String(indexFile.readFully(), java.nio.charset.StandardCharsets.UTF_8); }
+            catch (IOException error) { raw = ""; }
+        }
         if (raw == null || raw.isEmpty()) {
             return entries;
         }
@@ -294,7 +315,8 @@ final class RecordingLibrary {
                 }
                 Entry entry = Entry.fromJson(object);
                 // Файл могли вычистить снаружи — в индексе такой записи не место.
-                if (entry != null && file(entry.id).isFile()) {
+                if (entry != null && entry.id.matches("(?:legacy-)?[0-9]+(?:-[0-9]+)?")
+                        && file(entry.id).isFile()) {
                     entries.add(entry);
                 }
             }
@@ -305,7 +327,7 @@ final class RecordingLibrary {
         return entries;
     }
 
-    private void write(List<Entry> entries) {
+    private boolean write(List<Entry> entries) {
         JSONArray array = new JSONArray();
         try {
             for (Entry entry : entries) {
@@ -313,15 +335,44 @@ final class RecordingLibrary {
             }
         } catch (JSONException error) {
             Log.w(TAG, "не удалось собрать индекс записей");
-            return;
+            return false;
         }
-        preferences.edit().putString(KEY_INDEX, array.toString()).apply();
+        FileOutputStream output = null;
+        try {
+            output = indexFile.startWrite();
+            output.write(array.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            indexFile.finishWrite(output);
+            preferences.edit().remove(KEY_INDEX).commit();
+            return true;
+        } catch (IOException failure) {
+            if (output != null) indexFile.failWrite(output);
+            return false;
+        }
+    }
+
+    private void recover() {
+        List<Entry> entries = read();
+        File[] files = directory.listFiles();
+        if (files != null) for (File file : files) {
+            String name = file.getName();
+            if (name.endsWith(".tmp")) { file.delete(); continue; }
+            if (name.matches("(?:legacy-)?[0-9]+(?:-[0-9]+)?[.]pcm")) {
+                String id = name.substring(0,name.length()-4);
+                long size=file.length();
+                if (!contains(entries,id) && size>0 && size<=MAX_BYTES && size%2==0)
+                    entries.add(new Entry(id,file.lastModified(),size*1000L/(AudioCapture.SAMPLE_RATE*2),
+                            size,SOURCE_APP,null,null,null));
+            }
+        }
+        entries.sort((a,b) -> Long.compare(b.createdAt,a.createdAt));
+        writeWithQuota(entries);
     }
 
     /** Единственная запись из прежней версии приложения переезжает в каталог. */
     private void importLegacy() {
         synchronized (LOCK) {
-            if (!legacy.isFile() || legacy.length() <= 0) {
+            if (!legacy.isFile() || legacy.length() <= 0 || legacy.length() > MAX_BYTES
+                    || legacy.length() % 2 != 0) {
                 return;
             }
             if (!directory.isDirectory() && !directory.mkdirs()) {
@@ -330,14 +381,15 @@ final class RecordingLibrary {
             long createdAt = legacy.lastModified();
             String id = "legacy-" + createdAt;
             List<Entry> entries = read();
-            if (!contains(entries, id) && legacy.renameTo(file(id))) {
+            if (!contains(entries, id)) {
+                try { java.nio.file.Files.copy(legacy.toPath(), file(id).toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING); }
+                catch (IOException failed) { return; }
                 long size = file(id).length();
                 entries.add(0, new Entry(id, createdAt,
                         size * 1000L / (AudioCapture.SAMPLE_RATE * 2L), size,
                         SOURCE_KEYBOARD, null, null, null));
-                write(evict(entries));
-            } else {
-                legacy.delete();
+                if (writeWithQuota(entries)) legacy.delete();
             }
         }
     }

@@ -12,6 +12,10 @@ final class WavEncoder {
     }
 
     static byte[] wrap(byte[] pcm, int sampleRate, int channels) {
+        if (pcm == null || sampleRate < 8000 || sampleRate > 192000 || channels < 1 || channels > 2
+                || pcm.length % (channels * 2) != 0 || pcm.length > 10 * 1024 * 1024) {
+            throw new IllegalArgumentException("Invalid PCM16 format");
+        }
         int dataLength = pcm.length;
         int byteRate = sampleRate * channels * 2;
         byte[] wav = new byte[HEADER_BYTES + dataLength];

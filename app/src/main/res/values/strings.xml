@@ -1,109 +1,117 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Dictate</string>
-    <string name="lead">Сервис принимает диктовку от разрешённых приложений, отправляет запись выбранной модели и возвращает текст через Android SpeechRecognizer.</string>
+    <string name="home_privacy">Audio is sent to the selected cloud provider using your API key. Local history is saved only when you choose to enable it.</string>
+    <string name="home_record">Dictate</string>
+    <string name="home_settings">Settings and client access</string>
+    <string name="home_ready">Ready for a new dictation</string>
+    <string name="home_preparing">Preparing microphone…</string>
+    <string name="home_listening">Recording</string>
+    <string name="home_processing">Processing…</string>
+    <string name="home_cancelled">Dictation cancelled</string>
+    <string name="lead">Speech recognition for allowed apps through Android SpeechRecognizer.</string>
 
-    <string name="section_provider">Провайдер</string>
-    <string name="section_recording">Запись</string>
-    <string name="section_keyterms">Словарь</string>
+    <string name="section_provider">Provider</string>
+    <string name="section_recording">Recording</string>
+    <string name="section_keyterms">Vocabulary</string>
 
-    <string name="key_saved_state">ключ сохранён</string>
-    <string name="key_missing">ключ не настроен</string>
-    <string name="key_replace">Заменить</string>
-    <string name="key_reset">Сбросить</string>
-    <string name="key_dialog_hint">Вставьте ключ провайдера</string>
-    <string name="key_saved">Ключ сохранён</string>
-    <string name="key_reset_done">Ключ удалён</string>
-    <string name="key_reset_question">Удалить сохранённый ключ?</string>
+    <string name="key_saved_state">key saved</string>
+    <string name="key_missing">key not configured</string>
+    <string name="key_replace">Replace</string>
+    <string name="key_reset">Delete</string>
+    <string name="key_dialog_hint">Enter the provider API key</string>
+    <string name="key_saved">Key saved</string>
+    <string name="key_reset_done">Key deleted</string>
+    <string name="key_reset_question">Delete the saved key?</string>
 
-    <string name="allowed_callers_title">Разрешённые приложения</string>
-    <string name="allowed_callers_hint">Только эти пакеты могут запускать диктовку</string>
-    <string name="allowed_callers_none">Ни одного — внешние вызовы запрещены</string>
-    <string name="allowed_callers_dialog_hint">Укажите package name каждого клиента с новой строки. Пустой список блокирует все внешние вызовы.</string>
+    <string name="allowed_callers_title">Allowed apps</string>
+    <string name="allowed_callers_hint">Only these packages can start dictation</string>
+    <string name="allowed_callers_none">None — external requests are blocked</string>
+    <string name="allowed_callers_dialog_hint">Enter one client package name per line. An empty list blocks external requests.</string>
     <string name="allowed_callers_example">org.example.keyboard</string>
     <plurals name="allowed_callers_count">
-        <item quantity="one">%d приложение</item>
-        <item quantity="few">%d приложения</item>
-        <item quantity="many">%d приложений</item>
-        <item quantity="other">%d приложений</item>
+        <item quantity="one">%d apps</item>
+        <item quantity="few">%d apps</item>
+        <item quantity="many">%d apps</item>
+        <item quantity="other">%d apps</item>
     </plurals>
 
-    <string name="audio_format">16 kHz · моно · PCM16</string>
-    <string name="auto_stop_label">Автостоп по тишине</string>
-    <string name="auto_stop_hint">иначе — до ручной остановки в клиенте</string>
-    <string name="silence_label">Тишина до остановки</string>
-    <string name="scale_0_5s">0,5 с</string>
-    <string name="scale_2_75s">2,75 с</string>
-    <string name="scale_5s">5 с</string>
+    <string name="audio_format">16 kHz · mono · PCM16</string>
+    <string name="auto_stop_label">Stop after silence</string>
+    <string name="auto_stop_hint">otherwise stop manually in the client</string>
+    <string name="silence_label">Silence before stopping</string>
+    <string name="scale_0_5s">0.5 s</string>
+    <string name="scale_2_75s">2.75 s</string>
+    <string name="scale_5s">5 s</string>
 
-    <string name="threshold_label">Порог речи</string>
-    <string name="meter_quiet">−70 dB тихо</string>
-    <string name="meter_loud">−30 dB громко</string>
-    <string name="threshold_explanation">Громкость, с которой звук считается речью: всё тише порога — тишина, и от неё идёт отсчёт автостопа.\nОбрывает на тихой речи или в конце фраз — сдвиньте левее. Не останавливается из-за шума, вентилятора, улицы — сдвиньте правее.</string>
+    <string name="threshold_label">Speech threshold</string>
+    <string name="meter_quiet">−70 dB quiet</string>
+    <string name="meter_loud">−30 dB loud</string>
+    <string name="threshold_explanation">Audio below this threshold counts as silence. Lower it for quiet speech or clipped endings; raise it for background noise.</string>
 
-    <string name="max_recording_label">Максимум записи</string>
-    <string name="max_recording_hint">5–300 с</string>
+    <string name="max_recording_label">Maximum recording</string>
+    <string name="max_recording_hint">5–300 s</string>
     <string name="minus">−</string>
     <string name="plus">+</string>
 
-    <string name="language_label">Язык</string>
-    <string name="language_hint">пусто — язык из запроса клиента</string>
-    <string name="language_auto">Авто</string>
-    <string name="language_other">Другой код…</string>
-    <string name="language_dialog_hint">Код языка: ru, en, de…</string>
+    <string name="language_label">Language</string>
+    <string name="language_hint">empty — use the language requested by the client</string>
+    <string name="language_auto">Auto</string>
+    <string name="language_other">Another tag…</string>
+    <string name="language_dialog_hint">Language tag: en-GB, pt-BR…</string>
 
-    <string name="keyterms_edit">Изменить словарь</string>
-    <string name="keyterms_restore">Вернуть стандартный</string>
-    <string name="keyterms_edit_action">Изменить словарь ›</string>
-    <string name="keyterms_empty">Словарь пуст — нажмите, чтобы добавить термины</string>
-    <string name="keyterms_dialog_hint">По одному термину в строке</string>
-    <string name="keyterms_unsupported">эта модель словарь не использует</string>
+    <string name="keyterms_edit">Edit vocabulary</string>
+    <string name="keyterms_restore">Clear</string>
+    <string name="keyterms_edit_action">Edit vocabulary ›</string>
+    <string name="keyterms_empty">Vocabulary is empty — tap to add terms</string>
+    <string name="keyterms_dialog_hint">One term per line</string>
+    <string name="keyterms_unsupported">this model does not support vocabulary</string>
 
-    <string name="last_run_never">Распознавание ещё не запускалось</string>
-    <string name="last_run_prefix">Последний запуск</string>
+    <string name="last_run_never">No recognition attempts yet</string>
+    <string name="last_run_prefix">Last attempt</string>
 
-    <string name="section_recordings">Записи</string>
-    <string name="recordings_empty">Диктофон внутри приложения: запишите здесь и прогоняйте одну запись через разные модели. Сюда же попадает звук диктовки с клавиатуры — если распознавание сорвётся, переговаривать не придётся.</string>
-    <string name="recordings_last">Последняя</string>
-    <string name="recordings_tail">В диктофоне её можно прослушать, распознать другой моделью и скопировать текст.</string>
-    <string name="recordings_open">Открыть диктофон</string>
+    <string name="section_recordings">History</string>
+    <string name="recordings_empty">Optional local recordings. Dictate from the home screen without saving, or enable history in Settings.</string>
+    <string name="recordings_last">Latest</string>
+    <string name="recordings_tail">Play it back, recognize it with another model, or copy the transcript.</string>
+    <string name="recordings_open">Open history</string>
 
-    <string name="back">‹ Назад</string>
-    <string name="recorder_title">Диктофон</string>
-    <string name="recorder_section">Записи</string>
+    <string name="back">‹ Back</string>
+    <string name="recorder_title">Recordings</string>
+    <string name="recorder_section">History</string>
     <string name="recorder_zero">0:00</string>
-    <string name="recorder_start">Записать</string>
-    <string name="recorder_hint_idle">Нажмите, чтобы записать. Ещё раз — чтобы остановить.</string>
-    <string name="recorder_hint_live">Идёт запись — нажмите, чтобы остановить</string>
-    <string name="recorder_hint_permission">Нужно разрешение на микрофон — нажмите, чтобы выдать</string>
-    <string name="recorder_hint_saved">Запись сохранена</string>
-    <string name="recorder_target">Распознаёт</string>
-    <string name="recorder_empty">Пока пусто. Запишите что-нибудь или продиктуйте через клавиатуру.</string>
-    <string name="recorder_footer">Храним последние десять записей: одиннадцатая вытесняет самую старую. Звук лежит только на телефоне, в логи не попадает.</string>
-    <string name="recorder_failed">Не удалось записать звук</string>
-    <string name="recorder_limit">Достигнут максимум записи из настроек</string>
+    <string name="recorder_start">Record</string>
+    <string name="recorder_hint_idle">Tap to record; tap again to stop.</string>
+    <string name="recorder_hint_live">Recording — tap to stop</string>
+    <string name="recorder_hint_permission">Microphone permission is needed — tap to allow</string>
+    <string name="recorder_hint_saved">Recording saved</string>
+    <string name="recorder_target">Recognize with</string>
+    <string name="recorder_empty">No saved recordings. Enable history in Settings to keep recent dictations.</string>
+    <string name="recorder_footer">Up to ten recordings are kept on this device when history is enabled. Recognition sends audio to the selected provider.</string>
+    <string name="recorder_failed">Could not capture audio</string>
+    <string name="recorder_limit">Recording duration limit reached</string>
 
-    <string name="recording_source_keyboard">клавиатура</string>
-    <string name="recording_source_app">диктофон</string>
-    <string name="recording_play">Прослушать</string>
-    <string name="recording_stop">Стоп</string>
-    <string name="recording_recognize">Распознать</string>
-    <string name="recording_running">Распознаю…</string>
-    <string name="recording_copy_short">Копировать</string>
+    <string name="recording_source_keyboard">speech client</string>
+    <string name="recording_source_app">recorder</string>
+    <string name="recording_play">Play</string>
+    <string name="recording_stop">Stop</string>
+    <string name="recording_recognize">Recognize</string>
+    <string name="recording_running">Processing…</string>
+    <string name="recording_copy_short">Copy</string>
     <string name="recording_delete_glyph">✕</string>
-    <string name="recording_delete">Удалить</string>
-    <string name="recording_delete_question">Удалить эту запись с устройства?</string>
-    <string name="recording_deleted">Запись удалена</string>
-    <string name="recording_copied">Скопировано в буфер обмена</string>
-    <string name="save">Сохранить</string>
-    <string name="saved">Настройки сохранены</string>
+    <string name="recording_delete">Delete</string>
+    <string name="recording_delete_question">Delete this recording?</string>
+    <string name="recording_deleted">Recording deleted</string>
+    <string name="recording_copied">Copied to clipboard</string>
+    <string name="save">Save</string>
+    <string name="saved">Settings saved</string>
 
-    <string name="permission_microphone_ok">Микрофон разрешён</string>
-    <string name="permission_microphone_missing">Нужен микрофон</string>
-    <string name="permission_overlay_ok">Работа в фоне настроена</string>
-    <string name="permission_overlay_missing">Нужно окно поверх</string>
+    <string name="permission_microphone_ok">Microphone allowed</string>
+    <string name="permission_microphone_missing">Microphone permission required</string>
+    <string name="permission_overlay_ok">Recording indicator allowed</string>
+    <string name="permission_overlay_missing">Allow recording indicator</string>
 
-    <string name="footer">API-ключи шифруются ключом из Android Keystore. Распознанный текст и звук в логи не пишутся.\nКомпонент: io.github.ev0lv3nta.dictate/.DictateRecognitionService</string>
+    <string name="footer">API keys are encrypted with Android Keystore. Audio and transcripts are not included in diagnostic logs.</string>
 
-    <string name="mic_notification_text">Идёт распознавание речи</string>
+    <string name="mic_notification_text">Speech recognition in progress</string>
 </resources>

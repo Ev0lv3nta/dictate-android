@@ -87,8 +87,13 @@ final class SecureApiKeyStore {
     }
 
     boolean hasCustomKey(String providerId) {
-        String value = loadCustom(providerId);
-        return value != null && !value.isEmpty();
+        // Cheap UI check; decryption and recovery run on the session worker.
+        return preferences.contains(ciphertextName(providerId)) || preferences.contains(ivName(providerId));
+    }
+
+    boolean isUnreadable(String providerId) {
+        return (preferences.contains(ciphertextName(providerId)) || preferences.contains(ivName(providerId)))
+                && loadCustom(providerId) == null;
     }
 
     /** Показывает вид ключа, не раскрывая сам ключ: sk_c2fa…64bc. */
@@ -96,14 +101,15 @@ final class SecureApiKeyStore {
         if (apiKey == null || apiKey.length() < 12) {
             return "—";
         }
-        return apiKey.substring(0, 7) + "…" + apiKey.substring(apiKey.length() - 4);
+        return "••••" + apiKey.substring(apiKey.length() - 4);
     }
 
     synchronized void clear(String providerId) {
-        preferences.edit()
+        boolean cleared = preferences.edit()
                 .remove(ciphertextName(providerId))
                 .remove(ivName(providerId))
                 .commit();
+        if (!cleared) throw new IllegalStateException("Не удалось удалить ключ");
     }
 
     private static String ciphertextName(String providerId) {

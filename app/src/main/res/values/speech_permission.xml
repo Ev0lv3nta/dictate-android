@@ -1,0 +1,4 @@
+<resources>
+    <!-- API 26–30 SpeechRecognizer binds from the client process. -->
+    <string name="speech_bind_permission" translatable="false">android.permission.RECORD_AUDIO</string>
+</resources>

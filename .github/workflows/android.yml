@@ -1,0 +1,93 @@
+name: Android integration
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  microphone:
+    name: microphone (${{ matrix.api }})
+    runs-on: ubuntu-latest
+    env:
+      DISPLAY: :99
+      QEMU_AUDIO_DRV: ${{ matrix.audio == 'pulse' && 'pa' || 'none' }}
+      QEMU_PA_SERVER: unix:/tmp/dictate-pulse.socket
+      PULSE_SERVER: unix:/tmp/dictate-pulse.socket
+      PULSE_SOURCE: dictate_input.monitor
+      PULSE_SINK: dictate_output
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: 26
+            audio: pulse
+          - api: 31
+            audio: grpc
+          - api: 34
+            audio: pulse
+          - api: 36
+            audio: grpc
+            delivery: buffered
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Build test variants
+        run: ./gradlew --no-daemon :app:assembleIntegration :sample-client:assembleDebug
+      - name: Enable KVM
+        run: |
+          sudo chmod 666 /dev/kvm
+      - name: Virtual microphone
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y pulseaudio pulseaudio-utils xvfb x11-utils
+          # Headless QEMU stubs out PulseAudio; run the normal emulator on a virtual display.
+          Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp > /tmp/dictate-xvfb.log 2>&1 &
+          for attempt in $(seq 1 50); do
+            if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then break; fi
+            sleep 0.1
+          done
+          xdpyinfo -display "$DISPLAY" >/dev/null
+          env -u PULSE_SERVER pulseaudio --start --exit-idle-time=-1
+          env -u PULSE_SERVER pactl load-module module-native-protocol-unix socket=/tmp/dictate-pulse.socket
+          pactl load-module module-null-sink sink_name=dictate_input rate=48000 channels=2
+          pactl load-module module-null-sink sink_name=dictate_output rate=48000 channels=2
+          pactl set-default-source dictate_input.monitor
+          pactl set-default-sink dictate_output
+          pactl info
+      - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          # Pin the previous stable engine: 37.1.11 truncates injected audio on these x86 images.
+          emulator-build: 15507667 # 36.6.11 stable
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          emulator-options: -no-snapshot -no-boot-anim -gpu software -memory 4096 -cores 4 -feature -Vulkan -grpc 8554 -grpc-use-token -allow-host-audio
+          script: |
+            ./gradlew --no-daemon :app:connectedIntegrationAndroidTest
+            adb -s emulator-5554 install -r app/build/outputs/apk/integration/app-integration.apk
+            adb -s emulator-5554 install sample-client/build/outputs/apk/debug/sample-client-debug.apk
+            uv run scripts/emulator_smoke.py --sdk "$ANDROID_HOME" --audio-backend ${{ matrix.audio }} --grpc-delivery ${{ matrix.delivery || 'realtime' }} --screenshots build/emulator-report
+            ./gradlew --no-daemon :sample-client:connectedDebugAndroidTest
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: android-${{ matrix.api }}
+          path: |
+            build/emulator-report
+            app/build/reports/androidTests
+            sample-client/build/reports/androidTests
+          if-no-files-found: ignore

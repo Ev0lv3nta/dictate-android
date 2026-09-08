@@ -98,6 +98,10 @@ public final class RecorderActivity extends Activity {
         apiKeyStore = new SecureApiKeyStore(this);
         library = new RecordingLibrary(this);
         setContentView(R.layout.activity_recorder);
+        findViewById(android.R.id.content).setOnApplyWindowInsetsListener((view, insets) -> {
+            view.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+            return insets;
+        });
 
         record = findViewById(R.id.record);
         timer = findViewById(R.id.timer);
@@ -137,6 +141,10 @@ public final class RecorderActivity extends Activity {
     // --- Запись ---
 
     private void toggleRecording() {
+        if (!appPreferences.isHistoryEnabled()) {
+            startActivity(new android.content.Intent(this, HomeActivity.class));
+            return;
+        }
         if (recording) {
             stopRecording();
             return;
@@ -158,6 +166,7 @@ public final class RecorderActivity extends Activity {
         AudioCapture.Config config = new AudioCapture.Config(false, maxMillis, maxMillis,
                 maxMillis, appPreferences.getSpeechThresholdDb());
         final AudioCapture active = new AudioCapture(this, config);
+        if (!OperationGate.acquire(active)) { toast(getString(R.string.error_busy)); return; }
         capture = active;
 
         recording = true;
@@ -165,6 +174,7 @@ public final class RecorderActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         record.setBackgroundResource(R.drawable.mic_button_live);
         record.setImageResource(R.drawable.ic_stop);
+        record.setContentDescription(getString(R.string.home_preparing));
         recordHint.setText(R.string.recorder_hint_live);
         timer.setText(R.string.recorder_zero);
         mainHandler.post(timerTick);
@@ -184,7 +194,11 @@ public final class RecorderActivity extends Activity {
 
                     @Override
                     public void onRms(float normalizedRms) {
-                        mainHandler.post(() -> renderLevel(normalizedRms));
+                        mainHandler.post(() -> {
+                            if (capture != active || !recording) return;
+                            record.setContentDescription(getString(R.string.indicator_ready_stop));
+                            renderLevel(normalizedRms);
+                        });
                     }
                 });
             } catch (AudioCapture.CaptureException error) {
@@ -193,11 +207,15 @@ public final class RecorderActivity extends Activity {
                 failure = getString(R.string.permission_microphone_missing);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
+            } finally {
+                OperationGate.release(active);
             }
 
-            final AudioCapture.Result captured = result;
+            final RecordingLibrary.Entry captured = active.isCancelled() || !appPreferences.isHistoryEnabled()
+                    ? null : saveCaptured(result, config.speechThresholdDb);
+            final boolean limited = result != null && result.stopReason == AudioCapture.StopReason.MAX_DURATION;
             final String captureFailure = failure;
-            mainHandler.post(() -> finishRecording(captured, captureFailure));
+            mainHandler.post(() -> finishRecording(captured, limited, captureFailure));
         });
     }
 
@@ -208,13 +226,12 @@ public final class RecorderActivity extends Activity {
         }
     }
 
-    private void finishRecording(AudioCapture.Result result, String failure) {
+    private void finishRecording(RecordingLibrary.Entry entry, boolean limited, String failure) {
         capture = null;
         recording = false;
         mainHandler.removeCallbacks(timerTick);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (isFinishing() || isDestroyed()) {
-            saveCaptured(result);
             return;
         }
         renderIdle();
@@ -223,24 +240,23 @@ public final class RecorderActivity extends Activity {
             toast(failure);
             return;
         }
-        RecordingLibrary.Entry entry = saveCaptured(result);
         if (entry == null) {
             toast(getString(R.string.recorder_failed));
             return;
         }
-        recordHint.setText(result.stopReason == AudioCapture.StopReason.MAX_DURATION
+        recordHint.setText(limited
                 ? getString(R.string.recorder_limit)
                 : getString(R.string.recorder_hint_saved));
         renderList();
     }
 
     /** Обрезаем тишину по краям: пауза между нажатием и первым словом ни к чему. */
-    private RecordingLibrary.Entry saveCaptured(AudioCapture.Result result) {
+    private RecordingLibrary.Entry saveCaptured(AudioCapture.Result result, int threshold) {
         if (result == null || result.pcm == null || result.pcm.length == 0) {
             return null;
         }
         byte[] pcm = PcmSilenceTrimmer.trimEdges(result.pcm, AudioCapture.SAMPLE_RATE,
-                TRIM_THRESHOLD_DB, TRIM_KEEP_MILLIS).pcm;
+                threshold, TRIM_KEEP_MILLIS).pcm;
         if (pcm.length * 1000L / (AudioCapture.SAMPLE_RATE * 2L) < 200L) {
             return null;
         }
@@ -260,6 +276,7 @@ public final class RecorderActivity extends Activity {
         recordHint.setText(granted
                 ? R.string.recorder_hint_idle
                 : R.string.recorder_hint_permission);
+        record.setContentDescription(getString(R.string.recorder_start));
     }
 
     private void renderLevel(float normalizedRms) {
@@ -285,8 +302,7 @@ public final class RecorderActivity extends Activity {
 
     private void renderList() {
         List<RecordingLibrary.Entry> entries = library.list();
-        listMeta.setText(entries.isEmpty() ? "" : entries.size() + " из "
-                + RecordingLibrary.MAX_ENTRIES);
+        listMeta.setText(entries.isEmpty() ? "" : getString(R.string.history_count, entries.size(), RecordingLibrary.MAX_ENTRIES));
         empty.setVisibility(entries.isEmpty() ? View.VISIBLE : View.GONE);
         list.removeAllViews();
         LayoutInflater inflater = LayoutInflater.from(this);
@@ -325,6 +341,15 @@ public final class RecorderActivity extends Activity {
         }
 
         Button play = row.findViewById(R.id.play);
+        if (getResources().getConfiguration().fontScale > 1.3f
+                || getResources().getConfiguration().screenWidthDp < 360) {
+            LinearLayout actions = row.findViewById(R.id.recording_actions);
+            actions.setOrientation(LinearLayout.VERTICAL);
+            for (int i=0;i<actions.getChildCount();i++) {
+                actions.getChildAt(i).setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
+        }
         boolean playing = entry.id.equals(playingId);
         play.setText(playing ? R.string.recording_stop : R.string.recording_play);
         play.setOnClickListener(view -> {
@@ -376,7 +401,7 @@ public final class RecorderActivity extends Activity {
 
     private void startPlayback(RecordingLibrary.Entry entry) {
         stopPlayback();
-        final RecordingPlayer active = new RecordingPlayer();
+        final RecordingPlayer active = new RecordingPlayer(this);
         player = active;
         playingId = entry.id;
         renderList();
@@ -427,7 +452,7 @@ public final class RecorderActivity extends Activity {
      * смысл кнопки в том, чтобы попробовать другую на том же звуке.
      */
     private void recognize(RecordingLibrary.Entry entry) {
-        if (running.contains(entry.id)) {
+        if (!running.isEmpty()) {
             return;
         }
         final String providerId = appPreferences.getProvider();
@@ -436,6 +461,7 @@ public final class RecorderActivity extends Activity {
         final Transcription.Config config = new Transcription.Config(providerId, modelId,
                 appPreferences.getLanguageOverride(), appPreferences.getKeyterms());
         final Transcription.Request request = new Transcription.Request();
+        if (!OperationGate.acquire(request)) { toast(getString(R.string.error_busy)); return; }
         pendingRequest = request;
 
         running.add(entry.id);
@@ -448,13 +474,15 @@ public final class RecorderActivity extends Activity {
                 text = Transcription.clientFor(providerId)
                         .transcribe(library.load(entry.id), apiKey, config, request);
             } catch (Transcription.ApiException error) {
-                failure = error.getMessage();
+                failure = Transcription.userMessage(this, error.kind);
             } catch (IOException error) {
-                failure = "Не удалось прочитать сохранённую запись";
+                failure = getString(R.string.error_read_recording);
             } catch (RuntimeException error) {
-                failure = "Не удалось распознать запись";
+                failure = getString(R.string.error_recognize);
+            } finally {
+                OperationGate.release(request);
             }
-            if (text != null) {
+            if (text != null && !request.isCancelled()) {
                 library.setText(entry.id, text, providerId, modelId);
             }
             final String resultFailure = failure;
@@ -465,7 +493,7 @@ public final class RecorderActivity extends Activity {
                     return;
                 }
                 if (!ok) {
-                    toast(resultFailure == null ? "Не удалось распознать запись"
+                    toast(resultFailure == null ? getString(R.string.error_recognize)
                             : Transcription.limit(resultFailure));
                 } else {
                     expanded.add(entry.id);
@@ -552,7 +580,7 @@ public final class RecorderActivity extends Activity {
                 && now.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR);
         String clock = new SimpleDateFormat("HH:mm", new Locale("ru")).format(new Date(at));
         if (sameDay) {
-            return "Сегодня " + clock + " · " + DateUtils.getRelativeTimeSpanString(
+            return getString(R.string.history_today, clock) + " · " + DateUtils.getRelativeTimeSpanString(
                     at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)
                     .toString().toLowerCase(new Locale("ru"));
         }

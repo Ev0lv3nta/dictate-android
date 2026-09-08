@@ -52,6 +52,7 @@
         android:visibility="gone" />
 
     <LinearLayout
+        android:id="@+id/recording_actions"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
@@ -60,7 +61,8 @@
         <Button
             android:id="@+id/play"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:layout_weight="1"
             android:background="@drawable/btn_ghost"
             android:fontFamily="sans-serif-medium"
@@ -76,7 +78,8 @@
         <Button
             android:id="@+id/recognize"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:layout_marginStart="7dp"
             android:layout_weight="1"
             android:background="@drawable/btn_ghost"
@@ -93,7 +96,8 @@
         <Button
             android:id="@+id/copy"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:layout_marginStart="7dp"
             android:layout_weight="1"
             android:background="@drawable/btn_ghost"
@@ -109,8 +113,10 @@
 
         <Button
             android:id="@+id/delete"
-            android:layout_width="42dp"
-            android:layout_height="38dp"
+            android:contentDescription="@string/recording_delete"
+            android:layout_width="48dp"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:layout_marginStart="7dp"
             android:background="@drawable/btn_ghost"
             android:minWidth="0dp"

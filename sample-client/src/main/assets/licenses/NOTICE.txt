@@ -1,0 +1,6 @@
+Dictate sample — Copyright 2026 Ev0lv3nta. MIT License: Dictate-MIT.txt.
+
+Kotlin standard library 2.2.10 — JetBrains — Apache-2.0.txt
+https://github.com/JetBrains/kotlin
+JetBrains annotations 13.0 — JetBrains — Apache-2.0.txt
+https://github.com/JetBrains/java-annotations

@@ -7,8 +7,13 @@ build/
 captures/
 *.jks
 *.keystore
+*.p12
+*.pem
+*.pcm
+*.wav
+*.m4a
+recordings/
 *.apk
 *.aab
 *.log
 .DS_Store
-

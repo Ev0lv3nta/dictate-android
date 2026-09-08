@@ -1,6 +1,6 @@
 package io.github.ev0lv3nta.dictate;
 
-import android.util.Base64;
+import java.util.Base64;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -18,6 +18,7 @@ final class OpenRouterClient implements Transcription.Client {
     public String transcribe(byte[] pcm, String apiKey, Transcription.Config config,
                              Transcription.Request request) throws Transcription.ApiException {
         Transcription.requireKey(apiKey, NAME);
+        Transcription.validateConfig(config);
         Transcription.requireAudio(pcm);
 
         byte[] wav = WavEncoder.wrap(pcm, AudioCapture.SAMPLE_RATE, 1);
@@ -34,7 +35,7 @@ final class OpenRouterClient implements Transcription.Client {
             throws Transcription.ApiException {
         Transcription.Multipart multipart = new Transcription.Multipart()
                 .field("model", config.model)
-                .field("language", config.language);
+                .field("language", java.util.Locale.forLanguageTag(config.language).getLanguage());
         Transcription.Body body = multipart.file("file", "audio.wav", "audio/wav", wav);
 
         String response = Transcription.post(NAME, STT_ENDPOINT,
@@ -55,7 +56,7 @@ final class OpenRouterClient implements Transcription.Client {
         String json;
         try {
             JSONObject audio = new JSONObject()
-                    .put("data", Base64.encodeToString(wav, Base64.NO_WRAP))
+                    .put("data", Base64.getEncoder().encodeToString(wav))
                     .put("format", "wav");
             JSONArray content = new JSONArray().put(new JSONObject()
                     .put("type", "input_audio")
@@ -73,8 +74,7 @@ final class OpenRouterClient implements Transcription.Client {
                     .put("temperature", 0)
                     .put("top_p", 1);
             if (model.needsReasoning) {
-                // Gemini на этом эндпоинте отказывается работать с reasoning:none,
-                // а "low" не заметен по времени ответа.
+                // Request bounded reasoning; it is never included in the transcript.
                 body.put("reasoning", new JSONObject().put("effort", "low"));
             }
             json = body.toString();
@@ -95,10 +95,17 @@ final class OpenRouterClient implements Transcription.Client {
         if (choices == null || choices.length() == 0) {
             return "";
         }
+        JSONObject choice = choices.optJSONObject(0);
+        if (choice == null || !"stop".equals(choice.optString("finish_reason"))) {
+            throw new Transcription.ApiException(Transcription.ErrorKind.INVALID_RESPONSE, "Incomplete result");
+        }
         JSONObject message = choices.optJSONObject(0) == null
                 ? null : choices.optJSONObject(0).optJSONObject("message");
         if (message == null) {
             return "";
+        }
+        if (message.has("refusal") && !message.isNull("refusal")) {
+            throw new Transcription.ApiException(Transcription.ErrorKind.INVALID_RESPONSE, "Refused result");
         }
         Object content = message.opt("content");
         if (content instanceof String) {
@@ -110,7 +117,7 @@ final class OpenRouterClient implements Transcription.Client {
             JSONArray parts = (JSONArray) content;
             for (int index = 0; index < parts.length(); index++) {
                 JSONObject part = parts.optJSONObject(index);
-                if (part != null) {
+                if (part != null && "text".equals(part.optString("type"))) {
                     text.append(part.optString("text", ""));
                 }
             }
