@@ -20,6 +20,18 @@ JDK 17, Android SDK 36, AGP 9.4.0, Gradle Wrapper 9.7.1. `test` запускае
 
 Workflow [Android integration](../.github/workflows/android.yml) запускает Google APIs x86_64 на API 26, 31, 34 и 36. Результаты привязаны к commit в Actions, не к названию ветки. Локальный дополнительный прогон — API 36 arm64 на macOS.
 
+Обязательная матрица `0.2.0` — шесть проверок хранилища, три IPC-теста sample `0.2.0` и smoke реального микрофона на каждом CI-образе:
+
+| Android API / Google APIs | Архитектура | Вход в виртуальный микрофон | Сборка / backend |
+|---|---|---|---|
+| 26 | x86_64, Linux | PulseAudio, отдельный monitor | integration / fixture |
+| 31 | x86_64, Linux | gRPC, изолированный драйвер | integration / fixture |
+| 34 | x86_64, Linux | PulseAudio, отдельный monitor | integration / fixture |
+| 36 | x86_64, Linux | gRPC, изолированный драйвер | integration / fixture |
+| 36 | arm64, macOS | gRPC, изолированный драйвер | integration / fixture; release / запись без API |
+
+В CI закреплён Emulator 36.6.11 (build 15507667), локально — 37.1.11. Исходники релиза отмечены тегом `v0.2.0`; проверенный commit и ссылки на итоговые прогоны находятся в [PR #2](https://github.com/Ev0lv3nta/dictate-android/pull/2) и [релизе](https://github.com/Ev0lv3nta/dictate-android/releases/tag/v0.2.0). Merge требует все четыре Android checks и сборочный CI.
+
 Скрипт `scripts/emulator_smoke.py` проходит обычные экраны выдачи разрешений и добавления клиента. Перед записью оба процесса принудительно закрываются: недавнее открытие настроек не должно скрывать запрет фонового микрофона. Root, AppOps grants и изменение системного speech provider не используются.
 
 На API 26/34 в Linux CI синус 440 Гц подаётся через виртуальный источник PulseAudio (`dictate_input.monitor`); выход эмулятора направлен в отдельный sink, чтобы исключить акустическую петлю. На API 31/36 и локально на macOS используется авторизованный gRPC на localhost. Для этого пути `QEMU_AUDIO_DRV=none` исключает хостовый аудиодрайвер: вне инъекции эмулятор получает тишину. В обоих случаях исходный сигнал — PCM16 mono 16 кГц. Приложение читает AudioRecord в 16 кГц; fixture ищет связный фрагмент с частотой 440 Гц, затем возвращает явно подписанный текст. Это проверка аудиотракта и IPC, не качества распознавания речи. Отдельные отрицательные тесты отклоняют тишину, шум, слишком короткий фрагмент и другую частоту. Файлы личной речи не используются. В `release` fixture не компилируется.
