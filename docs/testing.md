@@ -34,7 +34,7 @@ adb -s emulator-5554 install sample-client/build/outputs/apk/debug/sample-client
 uv run scripts/emulator_smoke.py --sdk "$ANDROID_HOME" --screenshots build/emulator-report
 ```
 
-Скрипт принимает только serial эмулятора. После `onReadyForSpeech` он ждёт первого прочитанного аудиобуфера: Emulator 37.1.11 на macOS может падать внутри `audio_forwarder_enable`, если инъекция начинается раньше. Для синхронизации используется событие, не задержка наугад.
+Скрипт принимает только serial эмулятора. После `onReadyForSpeech` он ждёт первого прочитанного аудиобуфера: Emulator 37.1.11 на macOS может падать внутри `audio_forwarder_enable`, если инъекция начинается раньше. Для синхронизации используется событие, не задержка наугад. gRPC работает в `MODE_REAL_TIME`: каждый пакет содержит 20 мс PCM и подаётся по monotonic clock. Буферизованная подача на macOS давала преждевременное завершение без записанного сигнала. В Linux используется оконный emulator внутри Xvfb: headless QEMU не подключает PulseAudio.
 
 ## Подписанная сборка
 

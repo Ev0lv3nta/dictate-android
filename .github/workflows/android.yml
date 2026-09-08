@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   microphone:
+    name: microphone (${{ matrix.api }})
     runs-on: ubuntu-latest
     env:
       DISPLAY: :99
@@ -25,7 +26,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [26, 31, 34, 36]
+        include:
+          - api: 26
+            audio: pulse
+          - api: 31
+            audio: grpc
+          - api: 34
+            audio: pulse
+          - api: 36
+            audio: grpc
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
@@ -68,11 +77,14 @@ jobs:
             ./gradlew --no-daemon :app:connectedIntegrationAndroidTest
             adb -s emulator-5554 install -r app/build/outputs/apk/integration/app-integration.apk
             adb -s emulator-5554 install sample-client/build/outputs/apk/debug/sample-client-debug.apk
-            uv run scripts/emulator_smoke.py --sdk "$ANDROID_HOME" --audio-backend pulse --screenshots build/emulator-report
+            uv run scripts/emulator_smoke.py --sdk "$ANDROID_HOME" --audio-backend ${{ matrix.audio }} --screenshots build/emulator-report
             ./gradlew --no-daemon :sample-client:connectedDebugAndroidTest
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: android-${{ matrix.api }}
-          path: build/emulator-report
+          path: |
+            build/emulator-report
+            app/build/reports/androidTests
+            sample-client/build/reports/androidTests
           if-no-files-found: ignore
