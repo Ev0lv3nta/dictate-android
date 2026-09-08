@@ -42,7 +42,7 @@ jobs:
       - name: Virtual microphone
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y pulseaudio pulseaudio-utils xvfb
+          sudo apt-get install -y pulseaudio pulseaudio-utils xvfb x11-utils
           # Headless QEMU stubs out PulseAudio; run the normal emulator on a virtual display.
           Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp > /tmp/dictate-xvfb.log 2>&1 &
           for attempt in $(seq 1 50); do
