@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DISPLAY: :99
-      QEMU_AUDIO_DRV: pa
+      QEMU_AUDIO_DRV: ${{ matrix.audio == 'pulse' && 'pa' || 'none' }}
       QEMU_PA_SERVER: unix:/tmp/dictate-pulse.socket
       PULSE_SERVER: unix:/tmp/dictate-pulse.socket
       PULSE_SOURCE: dictate_input.monitor

@@ -22,12 +22,12 @@ Workflow [Android integration](../.github/workflows/android.yml) запуска�
 
 Скрипт `scripts/emulator_smoke.py` проходит обычные экраны выдачи разрешений и добавления клиента. Перед записью оба процесса принудительно закрываются: недавнее открытие настроек не должно скрывать запрет фонового микрофона. Root, AppOps grants и изменение системного speech provider не используются.
 
-В Linux CI синус 440 Гц подаётся через виртуальный источник PulseAudio (`dictate_input.monitor`); выход эмулятора направлен в отдельный sink, чтобы исключить акустическую петлю. Локально на macOS используется авторизованный gRPC на localhost, с выключенным доступом к физическому микрофону хоста. В обоих случаях исходный сигнал — PCM16 mono 16 кГц. Приложение читает AudioRecord в 16 кГц; fixture ищет связный фрагмент с частотой 440 Гц, затем возвращает явно подписанный текст. Это проверка аудиотракта и IPC, не качества распознавания речи. Отдельные отрицательные тесты отклоняют тишину, шум, слишком короткий фрагмент и другую частоту. Файлы личной речи не используются. В `release` fixture не компилируется.
+На API 26/34 в Linux CI синус 440 Гц подаётся через виртуальный источник PulseAudio (`dictate_input.monitor`); выход эмулятора направлен в отдельный sink, чтобы исключить акустическую петлю. На API 31/36 и локально на macOS используется авторизованный gRPC на localhost. Для этого пути `QEMU_AUDIO_DRV=none` исключает хостовый аудиодрайвер: вне инъекции эмулятор получает тишину. В обоих случаях исходный сигнал — PCM16 mono 16 кГц. Приложение читает AudioRecord в 16 кГц; fixture ищет связный фрагмент с частотой 440 Гц, затем возвращает явно подписанный текст. Это проверка аудиотракта и IPC, не качества распознавания речи. Отдельные отрицательные тесты отклоняют тишину, шум, слишком короткий фрагмент и другую частоту. Файлы личной речи не используются. В `release` fixture не компилируется.
 
 Запуск на уже созданном эмуляторе:
 
 ```bash
-emulator -avd Dictate_API36 -no-snapshot -grpc 8554 -grpc-use-token -allow-host-audio
+QEMU_AUDIO_DRV=none emulator -avd Dictate_API36 -no-snapshot -grpc 8554 -grpc-use-token -allow-host-audio
 ./gradlew :app:assembleIntegration :sample-client:assembleDebug
 adb -s emulator-5554 install app/build/outputs/apk/integration/app-integration.apk
 adb -s emulator-5554 install sample-client/build/outputs/apk/debug/sample-client-debug.apk
